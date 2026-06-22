@@ -1,0 +1,29 @@
+epanet_service/
+├── app/
+│   ├── main.py                  # FastAPI app entry point
+│   ├── core/
+│   │   ├── config.py            # settings (env vars, API keys)
+│   │   ├── auth.py              # API key middleware
+│   │   ├── database.py          # SQLite engine + session
+│   │   └── exceptions.py        # custom HTTP exceptions
+│   ├── models/
+│   │   └── simulation.py        # SQLAlchemy ORM models
+│   ├── routers/
+│   │   ├── files.py             # GET /files — list available .gpkg files
+│   │   └── simulation.py        # POST /simulate, GET /simulate/{id}, etc.
+│   ├── services/
+│   │   ├── network_builder.py   # .gpkg → wntr WaterNetworkModel
+│   │   └── simulation_service.py# run EPANET, parse results
+│   └── workers/
+│       └── simulation_worker.py # background task orchestrator
+├── data/
+│   └── gpkg/    # shared volume mount point for .gpkg files
+│   └── db/                    
+├── tests/
+│   ├── test_files.py
+│   └── test_simulation.py
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
+├── requirements.txt
+└── README.md

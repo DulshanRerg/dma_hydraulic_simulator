@@ -1,0 +1,50 @@
+# docker-compose.yml
+# -------------------
+# Runs the EPANET simulation service as a standalone container.
+#
+# Usage:
+#   cp .env.example .env          # fill in API_KEYS
+#   docker compose up -d --build
+#   docker compose logs -f
+
+version: "3.9"
+
+services:
+  epanet_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: epanet_service
+    restart: unless-stopped
+    ports:
+      - "8080:8080"           # expose to the main system or reverse proxy
+    env_file:
+      - .env
+    volumes:
+      # shared volume: place .gpkg files here from your main system
+      - gpkg_data:/data/gpkg
+      # persistent SQLite database
+      - db_data:/data/db
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout:  10s
+      retries:  3
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  gpkg_data:
+    driver: local
+    # To bind-mount a host directory instead, replace with:
+    # driver_opts:
+    #   type: none
+    #   o: bind
+    #   device: /your/host/path/to/gpkg
+  db_data:
+    driver: local

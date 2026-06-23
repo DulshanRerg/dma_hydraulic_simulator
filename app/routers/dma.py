@@ -32,6 +32,7 @@ from app.core.exceptions import GpkgNotFoundError, InvalidGpkgError
 from app.models.simulation import SimResult, SimScenario
 from app.services.dma_builder import build_dma_inp, estimate_nrw
 from app.services.dma_ingest import ingest_dma
+from app.services.leakage_report import analyse_leakage
 from app.workers.simulation_worker import run_simulation_task
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -323,4 +324,119 @@ async def get_nrw(
             if inlet_flow == sim_demand else
             "inlet_flow_m3h from bulk-meter simulation nodes."
         ),
+    }
+
+
+# ── GET leakage report ────────────────────────────────────────────────────────
+
+@router.get("/{filename}/simulate/{scenario_id}/leakage")
+async def get_leakage_report(
+    filename:    str,
+    scenario_id: int,
+    db:          AsyncSession = Depends(get_session),
+    _:           str          = Depends(require_api_key),
+):
+    """
+    Full leakage analysis for a completed DMA simulation.
+
+    Returns NRW estimate, pressure zone breakdown, per-pipe risk scores,
+    hotspot GeoJSON (top-50 risk pipes), and hourly flow balance.
+    """
+    scenario = await db.get(SimScenario, scenario_id)
+    if not scenario or scenario.gpkg_filename != filename:
+        raise HTTPException(status_code=404, detail="Scenario not found.")
+    if scenario.status != "DONE":
+        raise HTTPException(status_code=409, detail=f"Simulation is {scenario.status}, not DONE.")
+    if not scenario.extra_demands or "_dma_inp_path" not in (scenario.extra_demands or {}):
+        raise HTTPException(status_code=422, detail="Not a DMA simulation.")
+
+    # Re-run the leakage analysis from stored results
+    # (We store node/pipe results in SimResult rows — fetch and reconstruct)
+    from sqlalchemy import select as sa_select
+    from app.models.simulation import SimResult
+    from app.services.simulation_service import NodeResult, PipeResult, SimulationOutput
+
+    results_q = await db.execute(
+        sa_select(SimResult).where(SimResult.scenario_id == scenario_id)
+    )
+    sim_results = results_q.scalars().all()
+
+    node_results, pipe_results = [], []
+    for sr in sim_results:
+        d = sr.data or {}
+        if sr.result_type == "node":
+            node_results.append(NodeResult(
+                element_id    = sr.element_id,
+                time_step     = sr.time_step,
+                lat           = d.get("lat"),
+                lon           = d.get("lon"),
+                pressure      = d.get("pressure"),
+                head          = d.get("head"),
+                demand        = d.get("demand"),
+                water_age     = d.get("water_age"),
+                is_low_pressure = d.get("is_low_pressure", False),
+            ))
+        elif sr.result_type == "pipe":
+            pipe_results.append(PipeResult(
+                element_id    = sr.element_id,
+                time_step     = sr.time_step,
+                lat           = d.get("lat"),
+                lon           = d.get("lon"),
+                flow_rate     = d.get("flow_rate"),
+                velocity      = d.get("velocity"),
+                headloss      = d.get("headloss"),
+                is_high_velocity = d.get("is_high_velocity", False),
+            ))
+
+    sim_output = SimulationOutput(
+        node_results = node_results,
+        pipe_results = pipe_results,
+        summary      = scenario.summary or {},
+    )
+
+    extra = scenario.extra_demands or {}
+    report = analyse_leakage(
+        output           = sim_output,
+        scenario_id      = scenario_id,
+        dma_name         = extra.get("_dma_name", "DMA"),
+        base_demand_m3h  = scenario.base_demand or 0.011,
+        leakage_frac     = extra.get("_leakage_frac", 0.20),
+    )
+
+    return {
+        "scenario_id":      scenario_id,
+        "dma_name":         report.dma_name,
+        "warnings":         report.warnings,
+        "nrw": {
+            "system_input_m3h":   report.nrw.system_input_m3h,
+            "authorised_m3h":     report.nrw.authorised_m3h,
+            "nrw_m3h":            report.nrw.nrw_m3h,
+            "nrw_pct":            report.nrw.nrw_pct,
+            "real_loss_m3h":      report.nrw.real_loss_m3h,
+            "apparent_loss_m3h":  report.nrw.apparent_loss_m3h,
+            "ili":                report.nrw.ili,
+        },
+        "pressure_zones": [
+            {"zone": z.zone, "count": z.count, "pct": z.avg_pct, "node_ids": z.node_ids[:20]}
+            for z in report.pressure_zones
+        ],
+        "pipe_risks_top20": [
+            {
+                "pipe_id":    r.pipe_id,
+                "lat":        r.lat,
+                "lon":        r.lon,
+                "risk_score": r.risk_score,
+                "risk_level": r.risk_level,
+                "drivers":    r.drivers,
+                "avg_flow":   r.avg_flow,
+                "min_pressure_adjacent": r.min_pressure_adjacent,
+            }
+            for r in report.pipe_risks[:20]
+        ],
+        "hotspots_geojson":   report.hotspots,
+        "timestep_balance":   [
+            {"hour": b.hour, "inflow_m3h": b.inflow_m3h,
+             "demand_m3h": b.demand_m3h, "nrw_m3h": b.nrw_m3h}
+            for b in report.timestep_balance
+        ],
     }

@@ -331,10 +331,10 @@ def build_dma_inp(
     inp.write(out_path)
 
     logger.info(
-        "DMA .inp written → %s | %d junctions, %d reservoirs, %d tanks, "
-        "%d pipes, %d TCVs, %d synthetic connectors",
+        "DMA .inp written -> %s | %d junctions, %d reservoirs, %d tanks, "
+        "%d pipes+valvestubs, %d synthetic connectors",
         out_path, len(junction_keys), len(reservoir_keys), len(tank_keys),
-        len(edges), len(tcv_elements), len(report.connectors_added),
+        len(edges) + len(valve_pipe_rows), len(report.connectors_added),
     )
     return out_path, report
 

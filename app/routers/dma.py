@@ -191,7 +191,7 @@ async def simulate_dma(
     import tempfile
     inp_dir  = tempfile.mkdtemp(prefix="dma_epyt_")
     try:
-        inp_path = build_dma_inp(
+        inp_path, repair_report = build_dma_inp(
             dma             = dma,
             inp_dir         = inp_dir,
             duration_hrs    = body.duration_hrs,
@@ -203,6 +203,28 @@ async def simulate_dma(
         logger.exception("DMA .inp build failed")
         raise HTTPException(status_code=422, detail=f"Failed to build EPANET model: {e}")
 
+    # Serialise connectors for the response
+    connectors_geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [list(c.from_lonlat), list(c.to_lonlat)],
+                },
+                "properties": {
+                    "id":        c.connector_id,
+                    "length_m":  c.length_m,
+                    "diam_mm":   c.diam_mm,
+                    "material":  c.material,
+                    "reason":    c.reason,
+                },
+            }
+            for c in repair_report.connectors_added
+        ],
+    }
+
     # Store the pre-built inp_path and metadata in the scenario so the worker
     # can pick it up without rebuilding.  We reuse the existing SimScenario
     # model with pipe_ids=None (so the worker knows it's a pre-built .inp).
@@ -213,15 +235,16 @@ async def simulate_dma(
         base_demand    = body.base_demand_m3h,
         duration_hrs   = body.duration_hrs,
         time_step_min  = body.time_step_min,
-        reservoir_head = 0.0,   # not used (reservoirs are multi-source)
-        # Store the pre-built inp path in extra_demands for the worker to detect
+        reservoir_head = 0.0,
         extra_demands  = {
-            "_dma_inp_path": inp_path,
-            "_dma_name":     dma.dma_name,
-            "_leakage_frac": body.leakage_frac,
-            "_total_demand_m3h": round(
-                body.base_demand_m3h * (1 + body.leakage_frac), 6
-            ),
+            "_dma_inp_path":         inp_path,
+            "_dma_name":             dma.dma_name,
+            "_leakage_frac":         body.leakage_frac,
+            "_total_demand_m3h":     round(body.base_demand_m3h * (1 + body.leakage_frac), 6),
+            "_connectors_added":     len(repair_report.connectors_added),
+            "_connector_length_m":   repair_report.total_connector_length_m,
+            "_original_components":  repair_report.original_component_count,
+            "_repair_warnings":      repair_report.warnings,
         },
         status = "PENDING",
     )
@@ -231,7 +254,18 @@ async def simulate_dma(
 
     background.add_task(run_simulation_task, scenario.id)
     logger.info("Queued DMA scenario %d for '%s'", scenario.id, filename)
-    return {"id": scenario.id, "status": "PENDING", "dma_name": dma.dma_name, "inp_path": inp_path}
+    return {
+        "id":                   scenario.id,
+        "status":               "PENDING",
+        "dma_name":             dma.dma_name,
+        "topology_repair": {
+            "original_components":    repair_report.original_component_count,
+            "connectors_added":       len(repair_report.connectors_added),
+            "total_connector_length_m": repair_report.total_connector_length_m,
+            "warnings":               repair_report.warnings,
+            "connectors_geojson":     connectors_geojson,
+        },
+    }
 
 
 # ── GET NRW ───────────────────────────────────────────────────────────────────

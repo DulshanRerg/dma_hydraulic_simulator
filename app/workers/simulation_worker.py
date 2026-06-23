@@ -115,7 +115,15 @@ async def run_simulation_task(scenario_id: int) -> None:
 
         # step 1: .gpkg → .inp
         inp_dir  = tempfile.mkdtemp(prefix="epytflow_")
-        if scenario.pipe_ids:
+
+        # Check if this is a DMA scenario with a pre-built .inp path
+        extra = scenario.extra_demands or {}
+        dma_inp_path = extra.get("_dma_inp_path") if isinstance(extra, dict) else None
+
+        if dma_inp_path and os.path.isfile(dma_inp_path):
+            inp_path = dma_inp_path
+            logger.info("[%d] DMA scenario — using pre-built .inp: %s", scenario_id, inp_path)
+        elif scenario.pipe_ids:
             logger.info(
                 "[%d] Building .inp from a %d-pipe subset (reservoir=%.6f,%.6f)",
                 scenario_id, len(scenario.pipe_ids), scenario.reservoir_lat, scenario.reservoir_lon,

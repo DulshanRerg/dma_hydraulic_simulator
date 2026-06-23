@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
 from app.core.database import init_db
-from app.routers import files, network, simulation
+from app.routers import dma, files, network, simulation
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,6 +65,7 @@ def create_app() -> FastAPI:
     # ── routers ────────────────────────────────────────────────────────────────
     app.include_router(files.router)
     app.include_router(network.router)
+    app.include_router(dma.router)
     app.include_router(simulation.router)
 
     # ── health check (no auth required) ───────────────────────────────────────

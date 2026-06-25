@@ -25,6 +25,7 @@ from app.core.database import get_session
 from app.models.simulation import SimResult, SimScenario
 from app.services.network_builder import build_inp_from_gpkg
 from app.services.network_subset import build_inp_from_subset
+from app.services.rpt_parser import parse_rpt, rpt_nrw_summary
 from app.services.simulation_service import run_simulation
 
 logger = logging.getLogger(__name__)
@@ -65,8 +66,18 @@ def _build_leak_events(
     """
     Map lat/lon extra_demands → EPyT-Flow leak event dicts.
     Keys returned: node_id, diameter, start_time, end_time.
+
+    DMA scenarios store a metadata dict in extra_demands (not a list of
+    leak events). Detect this and bail out gracefully.
     """
     if not extra_demands:
+        return []
+
+    # DMA scenarios put a flat metadata dict in extra_demands (keys start with "_")
+    # rather than a list of [{lat, lon, ...}] leak events. Skip gracefully.
+    if isinstance(extra_demands, dict):
+        return []
+    if not isinstance(extra_demands, list):
         return []
 
     node_coords = _parse_inp_coordinates(inp_path)
@@ -207,7 +218,20 @@ async def run_simulation_task(scenario_id: int) -> None:
             scenario = await session.get(SimScenario, scenario_id)
             scenario.status      = "DONE"
             scenario.finished_at = datetime.utcnow()
-            scenario.summary     = output.summary
+
+            # Merge EPANET's own .rpt flow balance into the summary
+            # so the NRW endpoint gets real figures, not estimates.
+            merged_summary = dict(output.summary)
+            rpt = parse_rpt(inp_path)
+            if rpt:
+                merged_summary["epanet_flow_balance"] = rpt_nrw_summary(rpt)
+                merged_summary["epanet_status_events"] = len(rpt.status_events)
+                if rpt.flow_balance:
+                    merged_summary["inlet_flow_m3h"]    = rpt.flow_balance.total_inflow_m3h
+                    merged_summary["total_demand_m3h"]  = rpt.flow_balance.consumer_demand_m3h
+                if not rpt.balanced:
+                    merged_summary.setdefault("warnings", []).extend(rpt.warnings)
+            scenario.summary = merged_summary
             await session.commit()
 
         logger.info("[%d] Status → DONE  (%d records)", scenario_id, total)

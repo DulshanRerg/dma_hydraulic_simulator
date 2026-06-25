@@ -1,29 +1,43 @@
-epanet_service/
+epanet_service_epytflow/
 ├── app/
-│   ├── main.py                  # FastAPI app entry point
 │   ├── core/
-│   │   ├── config.py            # settings (env vars, API keys)
-│   │   ├── auth.py              # API key middleware
-│   │   ├── database.py          # SQLite engine + session
-│   │   └── exceptions.py        # custom HTTP exceptions
-│   ├── models/
-│   │   └── simulation.py        # SQLAlchemy ORM models
+│   │   ├── auth.py                  API-key authentication
+│   │   ├── config.py                Settings (pydantic-settings)
+│   │   ├── database.py              Async SQLite engine + auto-migration
+│   │   └── exceptions.py            HTTP exception helpers
+│   ├── models/simulation.py         ORM: sim_scenarios + sim_results
 │   ├── routers/
-│   │   ├── files.py             # GET /files — list available .gpkg files
-│   │   └── simulation.py        # POST /simulate, GET /simulate/{id}, etc.
+│   │   ├── dma.py                   DMA endpoints (layers/simulate/leakage/nrw)
+│   │   ├── files.py                 GET /files
+│   │   ├── network.py               Network selection endpoints
+│   │   └── simulation.py            Scenario simulation endpoints
 │   ├── services/
-│   │   ├── network_builder.py   # .gpkg → wntr WaterNetworkModel
-│   │   └── simulation_service.py# run EPANET, parse results
-│   └── workers/
-│       └── simulation_worker.py # background task orchestrator
+│   │   ├── dma_builder.py           DMA EPANET .inp builder (multi-source/tank)
+│   │   ├── dma_ingest.py            Multi-layer GPKG → typed DMA asset dataclasses
+│   │   ├── leakage_report.py        Hydraulic leakage analysis (NRW/ILI/risk)
+│   │   ├── network_builder.py       Whole-network .gpkg → .inp
+│   │   ├── network_subset.py        Spatial selection + connected-component graph
+│   │   ├── rpt_parser.py            EPANET .rpt flow balance parser
+│   │   ├── simulation_service.py    EPyT-Flow v0.17.x runner (fixed API names)
+│   │   └── topology_repair.py       Shapely snap + T-split + MST connector insertion
+│   ├── workers/simulation_worker.py  Background task: .inp → EPyT-Flow → DB
+│   └── main.py
 ├── data/
-│   └── gpkg/    # shared volume mount point for .gpkg files
-│   └── db/                    
+│   ├── db/.gitkeep
+│   └── gpkg/
+│       ├── DUWASA.gpkg              Consolidated DMA dataset (pipes+sources+tanks+valves+DMA)
+│       ├── duwas_network.gpkg       Original pipe-only network
+│       └── pipes_cleaned.gpkg
+├── frontend/
+│   ├── dma_explorer.html            DMA Leakage Explorer (Leaflet + NRW dashboard)
+│   └── network_explorer.html        Sub-network selection & simulation UI
 ├── tests/
-│   ├── test_files.py
-│   └── test_simulation.py
+│   ├── conftest.py                  Shared DB-init fixture
+│   ├── test_api.py                  Original API integration tests
+│   ├── test_dma.py                  DMA endpoint + topology repair tests
+│   └── test_network.py              Network selection + subset simulation tests
+├── pytest.ini
 ├── Dockerfile
 ├── docker-compose.yml
-├── .env.example
 ├── requirements.txt
-└── README.md
+└── .env.example

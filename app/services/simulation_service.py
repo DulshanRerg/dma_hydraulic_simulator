@@ -1,25 +1,34 @@
 # app/services/simulation_service.py
 """
-Runs hydraulic + water-age simulation using EPyT-Flow v0.17.x.
+EPyT-Flow v0.17.x simulation runner.
 
-Correct EPyT-Flow API (verified from source):
----------------------------------------------
-  ScenarioSimulator(f_inp_in="path/to/net.inp")
-  sim.set_general_parameters(simulation_duration=86400, hydraulic_time_step=3600, ...)
-  sim.set_pressure_sensors(sensor_locations=["N_0", "N_1", ...])
-  sim.set_flow_sensors(sensor_locations=["P_0", "P_1", ...])
-  scada = sim.run_simulation()          # returns ScadaData
-  scada.get_data_pressures()            # numpy array (T, N_nodes)
-  scada.get_data_flows()                # numpy array (T, N_pipes)
-  scada.get_data_node_quality()         # numpy array (T, N_nodes) — water age in seconds
+Fixes applied vs previous version
+-----------------------------------
+1. `ScenarioSimulator.epanet_api` is an `epanet_plus.EPyT` instance, whose
+   node/link accessors are snake_case (`get_node_idx`, `get_node_type`,
+   `get_link_idx`, `get_link_type`, `get_all_nodes_id`, `get_all_links_id`,
+   `getcoord`, `getlinknodes`, `get_node_id`) — not the camelCase
+   Matlab-toolkit names (`getNodeIndex`, `getNodeType`, ...) this module
+   previously called, which don't exist on that class and raised
+   AttributeError before a single simulation could complete.
 
-  AbruptLeakage(node_id, link_id=None, diameter, start_time, end_time)
-  ScenarioConfig(f_inp_in, sensor_config, system_events=[leak, ...])
-  ScenarioSimulator(scenario_config=ScenarioConfig(...))
+2. Sensor API: use the explicit setter methods:
+       sim.set_pressure_sensors(sensor_locations=[...])
+       sim.set_flow_sensors(sensor_locations=[...])
+       sim.set_node_quality_sensors(sensor_locations=[...])
+
+3. ScadaData result access (v0.17):
+       scada.get_data_pressures()    → ndarray (T, N)
+       scada.get_data_flows()        → ndarray (T, N)  — in CMH (m³/h)
+       scada.get_data_node_quality() → ndarray (T, N)  — water age in seconds
+
+4. Sensor ordering: sensor_locations list order = column order in arrays.
+   We keep a local ordered list so indexing is correct.
+
+5. AbruptLeakage: uses keyword arg `diameter` (not `leak_diameter`).
 """
 
 import logging
-import math
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -62,7 +71,47 @@ class SimulationOutput:
     summary:      dict             = field(default_factory=dict)
 
 
-# ── runner ─────────────────────────────────────────────────────────────────────
+# ── coordinate extractor ───────────────────────────────────────────────────────
+
+def _extract_node_coords(api, node_ids: List[str]) -> Dict[str, Tuple[float, float]]:
+    """
+    Extract (lon, lat) for each node using the bundled EPyT class
+    (`epanet_plus.EPyT`). Its node/link accessors are snake_case
+    (`get_node_idx`, `getcoord`, ...) — not the camelCase
+    Matlab-toolkit names (`getNodeIndex`, `getNodeCoordinates`, ...).
+    """
+    coords: Dict[str, Tuple[float, float]] = {}
+    for nid in node_ids:
+        try:
+            idx = api.get_node_idx(nid)
+            xy  = api.getcoord(idx)   # [x, y]
+            if xy and len(xy) >= 2:
+                x, y = float(xy[0]), float(xy[1])
+                if x != 0.0 or y != 0.0:
+                    coords[nid] = (x, y)
+        except Exception:
+            pass
+    return coords
+
+
+def _extract_pipe_topology(
+    api, pipe_ids: List[str]
+) -> Dict[str, Tuple[str, str]]:
+    """Return {pipe_id: (start_node_id, end_node_id)}."""
+    topo: Dict[str, Tuple[str, str]] = {}
+    for pid in pipe_ids:
+        try:
+            idx   = api.get_link_idx(pid)
+            nodes = api.getlinknodes(idx)   # [start_idx, end_idx], 1-based
+            s_id  = api.get_node_id(nodes[0])
+            e_id  = api.get_node_id(nodes[1])
+            topo[pid] = (s_id, e_id)
+        except Exception:
+            pass
+    return topo
+
+
+# ── main runner ────────────────────────────────────────────────────────────────
 
 def run_simulation(
     inp_path:      str,
@@ -71,190 +120,176 @@ def run_simulation(
     leak_events:   Optional[List[dict]] = None,
 ) -> SimulationOutput:
     """
-    Run an EPyT-Flow simulation from an EPANET .inp file.
+    Run EPyT-Flow simulation from an EPANET .inp file.
 
     Parameters
     ----------
-    inp_path      : absolute path to the EPANET .inp file (from network_builder)
-    duration_hrs  : total EPS duration in hours
-    time_step_min : hydraulic time step in minutes
-    leak_events   : list of dicts, each with keys:
-                      node_id        (str)   — EPANET node ID, e.g. "N_42"
-                      diameter       (float) — orifice diameter in metres
-                      start_time     (int)   — seconds from sim start
-                      end_time       (int)   — seconds from sim start
-                    These become EPyT-Flow AbruptLeakage events.
-
-    Returns
-    -------
-    SimulationOutput
+    inp_path      : path to the .inp file produced by network_builder
+    duration_hrs  : total EPS duration (hours)
+    time_step_min : hydraulic timestep (minutes)
+    leak_events   : list of dicts:
+                    { node_id, diameter, start_time, end_time }
+                    Each becomes an AbruptLeakage event in EPyT-Flow.
     """
     try:
-        from epyt_flow.simulation import ScenarioSimulator, ScenarioConfig
+        from epyt_flow.simulation import ScenarioSimulator
         from epyt_flow.simulation.events import AbruptLeakage
     except ImportError as exc:
         raise RuntimeError(
-            "epyt-flow is not installed. Run:  pip install epyt-flow==0.17.1"
+            "epyt-flow is not installed.  Run: pip install epyt-flow==0.17.1"
         ) from exc
 
-    settings       = get_settings()
-    duration_sec   = duration_hrs  * 3600
-    time_step_sec  = time_step_min * 60
+    settings      = get_settings()
+    duration_sec  = duration_hrs  * 3600
+    timestep_sec  = time_step_min * 60
 
     logger.info(
         "EPyT-Flow: loading .inp '%s'  (duration=%dh, ts=%dmin, leaks=%d)",
         inp_path, duration_hrs, time_step_min, len(leak_events or []),
     )
 
-    # ── build AbruptLeakage events ─────────────────────────────────────────────
-    system_events = []
-    for ev in (leak_events or []):
-        system_events.append(
-            AbruptLeakage(
-                node_id    = ev["node_id"],
-                link_id    = None,
-                diameter   = ev.get("diameter", 0.01),
-                start_time = ev.get("start_time", 0),
-                end_time   = ev.get("end_time", duration_sec),
-            )
-        )
-        logger.info(
-            "  AbruptLeakage: node=%s  Ø=%.3f m  t=[%d, %d]s",
-            ev["node_id"], ev.get("diameter", 0.01),
-            ev.get("start_time", 0), ev.get("end_time", duration_sec),
-        )
-
-    # ── run simulation (two-pass approach) ─────────────────────────────────────
-    # Pass 1: open the .inp to discover node and pipe IDs for sensor placement.
-    # Pass 2: run with full sensor config + leak events.
-    # (EPyT-Flow requires sensor IDs to be set before run_simulation())
-
+    # ── pass 1: probe network to discover node/pipe IDs + coordinates ──────────
     with ScenarioSimulator(f_inp_in=inp_path) as probe:
         probe.set_general_parameters(
             simulation_duration = duration_sec,
-            hydraulic_time_step = time_step_sec,
-            reporting_time_step = time_step_sec,
+            hydraulic_time_step = timestep_sec,
+            reporting_time_step = timestep_sec,
         )
-        all_node_ids = probe.sensor_config.nodes        # list[str]
-        all_pipe_ids = probe.sensor_config.links        # list[str]
+        api = probe.epanet_api
 
-        # collect node coordinates via EPyT's low-level API
-        node_coords: Dict[str, Tuple[float, float]] = {}
+        # all node / link names from EPANET
+        all_node_ids: List[str] = api.get_all_nodes_id()
+        all_link_ids: List[str] = api.get_all_links_id()
+
+        # separate junction IDs from reservoir IDs
+        junction_ids: List[str] = []
+        reservoir_ids: List[str] = []
         for nid in all_node_ids:
-            try:
-                idx    = probe.epanet_api.getNodeIndex(nid)
-                coords = probe.epanet_api.getNodeCoordinates(idx)
-                if coords and len(coords) >= 2:
-                    node_coords[nid] = (float(coords[0]), float(coords[1]))  # (lon, lat)
-            except Exception:
-                pass
+            idx  = api.get_node_idx(nid)
+            ntype = api.get_node_type(idx)   # returns int; 0=Junction,1=Reservoir,2=Tank
+            if ntype == 1:
+                reservoir_ids.append(nid)
+            else:
+                junction_ids.append(nid)
 
-        # collect pipe topology (start / end node) for midpoint coords
-        pipe_topology: Dict[str, Tuple[str, str]] = {}
-        for pid in all_pipe_ids:
-            try:
-                idx   = probe.epanet_api.getLinkIndex(pid)
-                nodes = probe.epanet_api.getLinkNodesIndex(idx)
-                s_id  = probe.epanet_api.getNodeNameID(nodes[0])
-                e_id  = probe.epanet_api.getNodeNameID(nodes[1])
-                pipe_topology[pid] = (s_id, e_id)
-            except Exception:
-                pass
+        # pipe IDs only (exclude pumps/valves)
+        pipe_ids: List[str] = []
+        for lid in all_link_ids:
+            idx   = api.get_link_idx(lid)
+            ltype = api.get_link_type(idx)   # 1=PIPE, 2=PUMP, etc.
+            if ltype == 1:
+                pipe_ids.append(lid)
+
+        # extract coordinates and topology
+        node_coords  = _extract_node_coords(api, all_node_ids)
+        pipe_topology = _extract_pipe_topology(api, pipe_ids)
 
     logger.info(
-        "Network probe: %d nodes, %d pipes, %d with coords",
-        len(all_node_ids), len(all_pipe_ids), len(node_coords),
+        "Network: %d junctions, %d reservoirs, %d pipes | coords resolved: %d",
+        len(junction_ids), len(reservoir_ids), len(pipe_ids), len(node_coords),
     )
 
-    # ── build ScenarioConfig with sensors + events ─────────────────────────────
+    # ── pass 2: build AbruptLeakage events ─────────────────────────────────────
+    system_events = []
+    for ev in (leak_events or []):
+        nid = ev.get("node_id")
+        if nid not in junction_ids:
+            logger.warning("Leak node '%s' not found in junctions — skipped", nid)
+            continue
+        system_events.append(
+            AbruptLeakage(
+                node_id    = nid,
+                link_id    = None,
+                diameter   = float(ev.get("diameter", 0.01)),
+                start_time = int(ev.get("start_time", 0)),
+                end_time   = int(ev.get("end_time", duration_sec)),
+            )
+        )
+        logger.info(
+            "  AbruptLeakage → node=%s  Ø=%.3f m  t=[%d, %d]s",
+            nid, ev.get("diameter", 0.01),
+            ev.get("start_time", 0), ev.get("end_time", duration_sec),
+        )
+
+    # ── pass 3: run with sensors + leakage events ──────────────────────────────
     with ScenarioSimulator(f_inp_in=inp_path) as sim:
         sim.set_general_parameters(
             simulation_duration = duration_sec,
-            hydraulic_time_step = time_step_sec,
-            reporting_time_step = time_step_sec,
+            hydraulic_time_step = timestep_sec,
+            reporting_time_step = timestep_sec,
         )
 
-        # sensors on every junction (exclude reservoirs/tanks for pressure)
-        junction_ids = [
-            n for n in all_node_ids
-            if n not in (probe.epanet_api.get_all_reservoirs_id() if False else [])
-        ]
-        sim.set_pressure_sensors(sensor_locations=all_node_ids)
-        sim.set_flow_sensors(sensor_locations=all_pipe_ids)
-        sim.set_node_quality_sensors(sensor_locations=all_node_ids)  # water age
+        # register sensors — use junction_ids for pressure/quality (not reservoirs)
+        sim.set_pressure_sensors(sensor_locations=junction_ids)
+        sim.set_flow_sensors(sensor_locations=pipe_ids)
+        if junction_ids:
+            sim.set_node_quality_sensors(sensor_locations=junction_ids)
 
         # inject leakage events
         for leak in system_events:
             sim.add_leakage(leak)
 
-        # ── run ────────────────────────────────────────────────────────────────
         logger.info("Running EPyT-Flow simulation …")
         scada = sim.run_simulation()
         logger.info("EPyT-Flow simulation complete.")
 
-        # ── extract result arrays ──────────────────────────────────────────────
-        pressure_arr = scada.get_data_pressures()     # (T, N_nodes) — m
-        flow_arr     = scada.get_data_flows()         # (T, N_pipes) — CMH (m³/h)
-        quality_arr  = scada.get_data_nodes_quality()  # (T, N_nodes) — seconds (water age)
+        # result arrays — shape (T, N_sensors)
+        pressure_arr = scada.get_data_pressures()     # m
+        flow_arr     = scada.get_data_flows()         # m³/h (CMH)
+        quality_arr  = scada.get_data_nodes_quality()  # seconds (water age)
 
-        sensor_node_ids = scada.sensor_config.pressure_sensors  # ordered list
-        sensor_pipe_ids = scada.sensor_config.flow_sensors
+        # sensor ordering matches the lists we passed in
+        pressure_node_ids = junction_ids
+        flow_pipe_ids     = pipe_ids
+        quality_node_ids  = junction_ids
 
-        n_time_steps = pressure_arr.shape[0] if pressure_arr is not None else 0
-        logger.info("Result time steps: %d", n_time_steps)
+        n_steps = pressure_arr.shape[0] if pressure_arr is not None else 0
+        logger.info("Result time steps: %d", n_steps)
 
-    # ── parse into dataclasses ─────────────────────────────────────────────────
+    # ── parse results ──────────────────────────────────────────────────────────
     output = SimulationOutput()
 
-    for t_idx in range(n_time_steps):
-        t_hr = t_idx  # one step per hour when time_step_min=60
+    for t in range(n_steps):
+        t_hr = t  # 1 step = 1 hour when time_step_min=60
 
-        # ── nodes ──────────────────────────────────────────────────────────────
-        for j_idx, node_id in enumerate(sensor_node_ids):
-            coords   = node_coords.get(node_id, (None, None))
-            pressure = float(pressure_arr[t_idx, j_idx]) if pressure_arr is not None else None
+        # nodes
+        for j, nid in enumerate(pressure_node_ids):
+            pressure = float(pressure_arr[t, j]) if pressure_arr is not None else None
             age_s    = (
-                float(quality_arr[t_idx, j_idx])
-                if quality_arr is not None and quality_arr.shape[1] > j_idx
+                float(quality_arr[t, j])
+                if quality_arr is not None and quality_arr.shape[1] > j
                 else None
             )
-
+            coords = node_coords.get(nid, (None, None))
             output.node_results.append(NodeResult(
-                element_id      = node_id,
+                element_id      = nid,
                 time_step       = t_hr,
                 lon             = coords[0],
                 lat             = coords[1],
                 pressure        = round(pressure, 3) if pressure is not None else None,
-                water_age       = round(age_s / 3600.0, 2) if age_s is not None else None,
+                water_age       = round(age_s / 3600.0, 2) if age_s else None,
                 is_low_pressure = (
                     pressure is not None and pressure < settings.min_pressure_m
                 ),
             ))
 
-        # ── pipes ───────────────────────────────────────────────────────────────
-        for p_idx, pipe_id in enumerate(sensor_pipe_ids):
-            flow_cmh  = float(flow_arr[t_idx, p_idx]) if flow_arr is not None else None
-            flow_m3s  = flow_cmh / 3600.0 if flow_cmh is not None else None
+        # pipes
+        for p, pid in enumerate(flow_pipe_ids):
+            flow_cmh = float(flow_arr[t, p]) if flow_arr is not None else None
+            flow_m3s = flow_cmh / 3600.0 if flow_cmh is not None else None
 
-            s_nid, e_nid = pipe_topology.get(pipe_id, (None, None))
-            s_coord = node_coords.get(s_nid, (None, None))
-            e_coord = node_coords.get(e_nid, (None, None))
-            mid_lon = (
-                (s_coord[0] + e_coord[0]) / 2
-                if s_coord[0] and e_coord[0] else None
-            )
-            mid_lat = (
-                (s_coord[1] + e_coord[1]) / 2
-                if s_coord[1] and e_coord[1] else None
-            )
+            s_nid, e_nid = pipe_topology.get(pid, (None, None))
+            s_xy = node_coords.get(s_nid, (None, None))
+            e_xy = node_coords.get(e_nid, (None, None))
+            mid_lon = (s_xy[0] + e_xy[0]) / 2 if s_xy[0] and e_xy[0] else None
+            mid_lat = (s_xy[1] + e_xy[1]) / 2 if s_xy[1] and e_xy[1] else None
 
             output.pipe_results.append(PipeResult(
-                element_id  = pipe_id,
-                time_step   = t_hr,
-                lon         = round(mid_lon, 7) if mid_lon else None,
-                lat         = round(mid_lat, 7) if mid_lat else None,
-                flow_rate   = round(flow_m3s, 6) if flow_m3s is not None else None,
-                is_high_velocity = False,   # velocity needs pipe diameter; set False for now
+                element_id = pid,
+                time_step  = t_hr,
+                lon        = round(mid_lon, 7) if mid_lon else None,
+                lat        = round(mid_lat, 7) if mid_lat else None,
+                flow_rate  = round(flow_m3s, 6) if flow_m3s is not None else None,
             ))
 
     # ── summary ────────────────────────────────────────────────────────────────
@@ -271,10 +306,10 @@ def run_simulation(
         "low_pressure_nodes":   sum(1 for n in output.node_results if n.is_low_pressure),
         "high_velocity_pipes":  0,
         "leak_events_injected": len(system_events),
-        "total_nodes":          len(sensor_node_ids),
-        "total_pipes":          len(sensor_pipe_ids),
+        "total_nodes":          len(junction_ids),
+        "total_pipes":          len(pipe_ids),
         "duration_hrs":         duration_hrs,
-        "time_steps":           n_time_steps,
+        "time_steps":           n_steps,
         "engine":               "EPyT-Flow v0.17.1",
     }
 

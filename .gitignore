@@ -14,5 +14,15 @@ __pycache__/
 .idea/
 .vscode/
 *.gpkg
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.zip
+*.qmd
+*.qgs
+*.qix
+*.vrt
 epanet/
 epanet

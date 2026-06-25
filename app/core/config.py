@@ -1,9 +1,7 @@
 # app/core/config.py
-
 from functools import lru_cache
 from typing import List
-
-from pydantic import Field
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,33 +10,36 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
-    service_name: str = "EPANET Hydraulic Service"
-    service_version: str = "1.0.0"
-    debug: bool = False
+    # service identity
+    service_name:    str  = "EPANET Hydraulic Service"
+    service_version: str  = "1.0.0"
+    debug:           bool = False
 
-    api_keys_raw: str = Field(
-        default="change-me-key-1",
-        validation_alias="API_KEYS"
-    )
+    # auth — stored as a comma-separated string, exposed as a list
+    api_keys: str = "change-me-key-1"
+
+    @field_validator("api_keys", mode="before")
+    @classmethod
+    def parse_api_keys(cls, v):
+        return v  # kept as raw string; split in property below
 
     @property
-    def api_keys(self) -> List[str]:
-        return [
-            k.strip()
-            for k in self.api_keys_raw.split(",")
-            if k.strip()
-        ]
+    def api_key_list(self) -> List[str]:
+        return [k.strip() for k in self.api_keys.split(",") if k.strip()]
 
-    gpkg_dir: str = "./data/gpkg"
+    # paths
+    gpkg_dir:     str = "./data/gpkg"
     database_url: str = "sqlite+aiosqlite:///./data/db/epanet_service.db"
 
-    default_duration_hrs: int = 24
-    default_timestep_min: int = 60
-    default_base_demand: float = 0.001
-    min_pressure_m: float = 7.0
-    max_velocity_ms: float = 3.0
+    # simulation defaults
+    default_duration_hrs: int   = 24
+    default_timestep_min: int   = 60
+    default_base_demand:  float = 0.001
+    min_pressure_m:       float = 7.0
+    max_velocity_ms:      float = 3.0
 
 
 @lru_cache

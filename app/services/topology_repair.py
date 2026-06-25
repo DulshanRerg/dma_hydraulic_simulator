@@ -215,7 +215,13 @@ def repair_topology(
             except Exception:
                 snapped.append(line)
 
-        merged = linemerge(unary_union(snapped))
+        combined = unary_union(snapped)
+        try:
+            merged = linemerge(combined)
+        except (ValueError, Exception):
+            # shapely 2.x raises ValueError for a bare LineString (not a collection)
+            merged = combined
+
         segments_shp = (
             list(merged.geoms) if merged.geom_type == "MultiLineString"
             else [merged] if merged.geom_type == "LineString"

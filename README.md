@@ -21,6 +21,76 @@ EPyT-Flow wraps the official **EPANET C library** directly and adds:
 
 ---
 
+## Map-driven sub-network selection
+
+Most of the time you don't want to simulate the whole `.gpkg` — you want
+to pick a neighbourhood, a single trunk main, or whatever a field report
+points at. `frontend/network_explorer.html` is a self-contained Leaflet
+app that drives the full workflow against this API; open it in a browser
+and point it at your running service (no build step needed).
+
+1. **Display** — `GET /network/{filename}/pipes` returns the whole layer
+   as GeoJSON, rendered as the base map.
+2. **Select** — the user clicks individual pipes, drops a point + radius,
+   or draws a polygon. The frontend turns that into one
+   `POST /network/{filename}/select` call.
+3. **Extract + build the graph** — the endpoint pulls just the matching
+   pipes, then merges endpoints within `snap_tolerance_m` of each other
+   into shared nodes (this repairs the small digitising gaps that are
+   common in hand-maintained GIS layers) before computing connectivity.
+4. **Choose a connected piece** — real-world selections are often split
+   into several disconnected fragments. Every connected component is
+   returned (largest first), each with its own GeoJSON and node list, so
+   the UI can show them all and let the user pick one.
+5. **Choose a source node** — clicking a node marker on the chosen piece
+   sets it as the reservoir.
+6. **Generate EPANET & run** — `POST /simulate` with `pipe_ids` (the
+   chosen component's pipe ids) plus `reservoir_lat`/`reservoir_lon`
+   builds an `.inp` from exactly that sub-network with the chosen
+   reservoir as the only source, then runs it through the existing
+   EPyT-Flow pipeline — same polling, same result/GeoJSON endpoints as a
+   whole-network run.
+
+Example selection call:
+
+```json
+POST /network/duwas_network.gpkg/select
+X-API-Key: your-key
+
+{
+  "selection_type": "polygon",
+  "polygon": [[32.90, -2.51], [32.92, -2.51], [32.92, -2.53], [32.90, -2.53]],
+  "snap_tolerance_m": 2.0,
+  "pipe_status": "OPERATIONAL"
+}
+```
+
+...and the matching simulate call, using one returned component:
+
+```json
+POST /simulate
+X-API-Key: your-key
+
+{
+  "gpkg_filename":    "duwas_network.gpkg",
+  "name":             "Selected neighbourhood",
+  "pipe_ids":         [254, 337, 649, 812, "... the component's pipe_ids"],
+  "reservoir_lat":    -6.1319,
+  "reservoir_lon":    35.7304,
+  "snap_tolerance_m": 2.0,
+  "base_demand":      0.001,
+  "reservoir_head":   50.0,
+  "duration_hrs":     24,
+  "time_step_min":    60
+}
+```
+
+`reservoir_lat`/`reservoir_lon` must come from one of the `nodes` entries
+of the chosen component — the builder snaps to the nearest node in that
+component, so picking the exact node coordinates avoids any ambiguity.
+
+---
+
 ## Quick start
 
 ```bash
@@ -53,12 +123,18 @@ epanet_service/
 │   ├── models/simulation.py         ORM: sim_scenarios + sim_results
 │   ├── routers/
 │   │   ├── files.py                 GET /files
+│   │   ├── network.py               GET /network/{file}/pipes, POST /network/{file}/select
 │   │   └── simulation.py            All /simulate endpoints
 │   ├── services/
-│   │   ├── network_builder.py       .gpkg → EPANET .inp (pure stdlib)
+│   │   ├── network_builder.py       .gpkg → EPANET .inp, whole network (pure stdlib)
+│   │   ├── network_subset.py        spatial selection, endpoint-snapping, connected
+│   │   │                            components, .gpkg → EPANET .inp for a sub-network
 │   │   └── simulation_service.py    EPyT-Flow ScenarioSimulator runner
 │   └── workers/simulation_worker.py Background task orchestrator
-├── tests/test_api.py                pytest integration tests
+├── frontend/network_explorer.html   Leaflet UI for the select → extract → simulate workflow
+├── tests/
+│   ├── test_api.py                  pytest integration tests
+│   └── test_network.py              tests for /network/* and pipe_ids-based /simulate
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -75,6 +151,12 @@ All endpoints require `X-API-Key` header.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/files` | List `.gpkg` files in the shared volume |
+
+### Network exploration & selection
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/network/{filename}/pipes` | Full (or status-filtered) pipe network as GeoJSON — load straight into Leaflet |
+| POST | `/network/{filename}/select` | Resolve a clicked-pipe / point+radius / drawn-polygon selection into connected sub-networks |
 
 ### Simulations
 | Method | Endpoint | Description |

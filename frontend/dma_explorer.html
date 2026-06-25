@@ -1,1151 +1,683 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DMA Water Leakage Explorer</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js">
-    </script>
-    <style>
-        :root {
-            --bg: #0b1215;
-            --panel: #111a1f;
-            --panel2: #162028;
-            --border: #1e2e36;
-            --border2: #253540;
-            --text: #d4e3e8;
-            --dim: #7591a0;
-            --faint: #3d5560;
-            --cyan: #3fc7d6;
-            --cyan2: #1d5f68;
-            --amber: #e09c35;
-            --amber2: #5a3f18;
-            --red: #e05248;
-            --red2: #5a201c;
-            --green: #4dbf82;
-            --green2: #1a4a32;
-            --purple: #8b7ff5;
-            --blue: #5aaddf;
-            --mono: 'JetBrains Mono', monospace;
-            --sans: 'Inter', system-ui, sans-serif;
-        }
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0
-        }
-        html,
-        body {
-            height: 100%;
-            background: var(--bg);
-            color: var(--text);
-            font-family: var(--sans);
-            font-size: 13px
-        }
-        #app {
-            display: flex;
-            height: 100vh;
-            overflow: hidden
-        }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DMA Water Leakage Explorer</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+:root{
+  --bg:#0b1215;--panel:#111a1f;--panel2:#162028;--border:#1e2e36;--border2:#253540;
+  --text:#d4e3e8;--dim:#7591a0;--faint:#3d5560;
+  --cyan:#3fc7d6;--cyan2:#1d5f68;--amber:#e09c35;--amber2:#5a3f18;
+  --red:#e05248;--red2:#5a201c;--green:#4dbf82;--green2:#1a4a32;
+  --purple:#8b7ff5;--blue:#5aaddf;
+  --mono:'JetBrains Mono',monospace;--sans:'Inter',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px}
+#app{display:flex;height:100vh;overflow:hidden}
 
-        /* ── sidebar ── */
-        #sidebar {
-            width: 400px;
-            min-width: 400px;
-            display: flex;
-            flex-direction: column;
-            background: var(--panel);
-            border-right: 1px solid var(--border);
-            overflow: hidden
-        }
-        #sidebar-header {
-            padding: 16px 18px 14px;
-            border-bottom: 1px solid var(--border);
-            flex: none
-        }
-        #sidebar-header h1 {
-            font-size: 14px;
-            font-weight: 700;
-            letter-spacing: .04em;
-            color: var(--text)
-        }
-        #sidebar-header p {
-            font-size: 10.5px;
-            color: var(--dim);
-            margin-top: 3px;
-            font-family: var(--mono)
-        }
-        #sidebar-tabs {
-            display: flex;
-            border-bottom: 1px solid var(--border);
-            flex: none
-        }
-        .tab {
-            flex: 1;
-            padding: 9px 4px;
-            text-align: center;
-            font-size: 10px;
-            letter-spacing: .05em;
-            text-transform: uppercase;
-            font-weight: 600;
-            color: var(--dim);
-            cursor: pointer;
-            border-bottom: 2px solid transparent
-        }
-        .tab.active {
-            color: var(--cyan);
-            border-bottom-color: var(--cyan)
-        }
-        .tab:hover:not(.active) {
-            color: var(--text)
-        }
-        #sidebar-body {
-            flex: 1;
-            overflow-y: auto;
-            padding: 14px 16px
-        }
-        #sidebar-body::-webkit-scrollbar {
-            width: 5px
-        }
-        #sidebar-body::-webkit-scrollbar-thumb {
-            background: var(--border2)
-        }
+/* ── sidebar ── */
+#sidebar{width:400px;min-width:400px;display:flex;flex-direction:column;background:var(--panel);border-right:1px solid var(--border);overflow:hidden}
+#sidebar-header{padding:16px 18px 14px;border-bottom:1px solid var(--border);flex:none}
+#sidebar-header h1{font-size:14px;font-weight:700;letter-spacing:.04em;color:var(--text)}
+#sidebar-header p{font-size:10.5px;color:var(--dim);margin-top:3px;font-family:var(--mono)}
+#sidebar-tabs{display:flex;border-bottom:1px solid var(--border);flex:none}
+.tab{flex:1;padding:9px 4px;text-align:center;font-size:10px;letter-spacing:.05em;text-transform:uppercase;font-weight:600;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent}
+.tab.active{color:var(--cyan);border-bottom-color:var(--cyan)}
+.tab:hover:not(.active){color:var(--text)}
+#sidebar-body{flex:1;overflow-y:auto;padding:14px 16px}
+#sidebar-body::-webkit-scrollbar{width:5px}
+#sidebar-body::-webkit-scrollbar-thumb{background:var(--border2)}
 
-        /* ── tabs content ── */
-        .tab-pane {
-            display: none
-        }
-        .tab-pane.active {
-            display: block
-        }
+/* ── tabs content ── */
+.tab-pane{display:none}.tab-pane.active{display:block}
 
-        /* ── form elements ── */
-        .field {
-            margin-bottom: 10px
-        }
-        .field label {
-            display: block;
-            font-size: 10px;
-            font-family: var(--mono);
-            color: var(--dim);
-            letter-spacing: .04em;
-            margin-bottom: 4px
-        }
-        .field input,
-        .field select {
-            width: 100%;
-            background: var(--bg);
-            border: 1px solid var(--border2);
-            color: var(--text);
-            padding: 6px 8px;
-            font-size: 12px;
-            font-family: var(--mono);
-            border-radius: 2px;
-            outline: none
-        }
-        .field input:focus,
-        .field select:focus {
-            border-color: var(--cyan)
-        }
-        .row2 {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px
-        }
-        .btn {
-            background: var(--panel2);
-            border: 1px solid var(--border2);
-            color: var(--text);
-            padding: 8px 14px;
-            font-size: 10.5px;
-            font-weight: 700;
-            letter-spacing: .05em;
-            text-transform: uppercase;
-            border-radius: 2px;
-            cursor: pointer;
-            transition: all .15s;
-            width: 100%;
-            margin-top: 8px
-        }
-        .btn:hover {
-            border-color: var(--cyan);
-            color: var(--cyan)
-        }
-        .btn.primary {
-            background: var(--cyan2);
-            border-color: var(--cyan);
-            color: #dff7fa
-        }
-        .btn.primary:hover {
-            background: var(--cyan);
-            color: #071820
-        }
-        .btn:disabled {
-            opacity: .35;
-            cursor: not-allowed
-        }
-        .btn.danger {
-            background: var(--red2);
-            border-color: var(--red);
-            color: #fde8e7
-        }
+/* ── form elements ── */
+.field{margin-bottom:10px}
+.field label{display:block;font-size:10px;font-family:var(--mono);color:var(--dim);letter-spacing:.04em;margin-bottom:4px}
+.field input,.field select{width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:6px 8px;font-size:12px;font-family:var(--mono);border-radius:2px;outline:none}
+.field input:focus,.field select:focus{border-color:var(--cyan)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{background:var(--panel2);border:1px solid var(--border2);color:var(--text);padding:8px 14px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:2px;cursor:pointer;transition:all .15s;width:100%;margin-top:8px}
+.btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn.primary{background:var(--cyan2);border-color:var(--cyan);color:#dff7fa}
+.btn.primary:hover{background:var(--cyan);color:#071820}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn.danger{background:var(--red2);border-color:var(--red);color:#fde8e7}
 
-        /* ── stat cards ── */
-        .statgrid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px;
-            margin: 10px 0
-        }
-        .statgrid.three {
-            grid-template-columns: 1fr 1fr 1fr
-        }
-        .stat {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            padding: 8px 10px;
-            border-radius: 2px
-        }
-        .stat .v {
-            font-family: var(--mono);
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--cyan)
-        }
-        .stat .v.red {
-            color: var(--red)
-        }
-        .stat .v.amber {
-            color: var(--amber)
-        }
-        .stat .v.green {
-            color: var(--green)
-        }
-        .stat .l {
-            font-size: 9px;
-            color: var(--faint);
-            letter-spacing: .05em;
-            text-transform: uppercase;
-            margin-top: 2px
-        }
+/* ── stat cards ── */
+.statgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:10px 0}
+.statgrid.three{grid-template-columns:1fr 1fr 1fr}
+.stat{background:var(--bg);border:1px solid var(--border);padding:8px 10px;border-radius:2px}
+.stat .v{font-family:var(--mono);font-size:15px;font-weight:700;color:var(--cyan)}
+.stat .v.red{color:var(--red)}.stat .v.amber{color:var(--amber)}.stat .v.green{color:var(--green)}
+.stat .l{font-size:9px;color:var(--faint);letter-spacing:.05em;text-transform:uppercase;margin-top:2px}
 
-        /* ── status ── */
-        .status-bar {
-            padding: 7px 10px;
-            border-radius: 2px;
-            font-family: var(--mono);
-            font-size: 10.5px;
-            margin: 8px 0;
-            border: 1px solid var(--border)
-        }
-        .status-bar.pending {
-            color: var(--dim)
-        }
-        .status-bar.running {
-            color: var(--amber);
-            border-color: var(--amber2)
-        }
-        .status-bar.done {
-            color: var(--green);
-            border-color: var(--green2)
-        }
-        .status-bar.failed {
-            color: var(--red);
-            border-color: var(--red2)
-        }
+/* ── status ── */
+.status-bar{padding:7px 10px;border-radius:2px;font-family:var(--mono);font-size:10.5px;margin:8px 0;border:1px solid var(--border)}
+.status-bar.pending{color:var(--dim)}.status-bar.running{color:var(--amber);border-color:var(--amber2)}
+.status-bar.done{color:var(--green);border-color:var(--green2)}.status-bar.failed{color:var(--red);border-color:var(--red2)}
 
-        /* ── layer toggles ── */
-        .layer-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 5px 0;
-            border-bottom: 1px solid var(--border)
-        }
-        .layer-row:last-child {
-            border-bottom: none
-        }
-        .layer-swatch {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            flex: none
-        }
-        .layer-row .lname {
-            flex: 1;
-            font-size: 11px;
-            color: var(--text)
-        }
-        .layer-row .lcount {
-            font-size: 10px;
-            color: var(--dim);
-            font-family: var(--mono)
-        }
-        .toggle {
-            width: 34px;
-            height: 18px;
-            border-radius: 9px;
-            background: var(--border2);
-            position: relative;
-            cursor: pointer;
-            flex: none;
-            transition: background .2s
-        }
-        .toggle.on {
-            background: var(--cyan2)
-        }
-        .toggle::after {
-            content: '';
-            position: absolute;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: var(--dim);
-            top: 3px;
-            left: 3px;
-            transition: all .2s
-        }
-        .toggle.on::after {
-            background: var(--cyan);
-            left: 19px
-        }
+/* ── layer toggles ── */
+.layer-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border)}
+.layer-row:last-child{border-bottom:none}
+.layer-swatch{width:12px;height:12px;border-radius:50%;flex:none}
+.layer-row .lname{flex:1;font-size:11px;color:var(--text)}
+.layer-row .lcount{font-size:10px;color:var(--dim);font-family:var(--mono)}
+.toggle{width:34px;height:18px;border-radius:9px;background:var(--border2);position:relative;cursor:pointer;flex:none;transition:background .2s}
+.toggle.on{background:var(--cyan2)}.toggle::after{content:'';position:absolute;width:12px;height:12px;border-radius:50%;background:var(--dim);top:3px;left:3px;transition:all .2s}
+.toggle.on::after{background:var(--cyan);left:19px}
 
-        /* ── risk list ── */
-        .risk-item {
-            padding: 7px 8px;
-            border: 1px solid var(--border);
-            border-radius: 2px;
-            margin-bottom: 5px;
-            cursor: pointer;
-            transition: border-color .15s
-        }
-        .risk-item:hover {
-            border-color: var(--amber)
-        }
-        .risk-item .ri-header {
-            display: flex;
-            align-items: center;
-            gap: 6px
-        }
-        .risk-badge {
-            padding: 2px 7px;
-            border-radius: 10px;
-            font-size: 9.5px;
-            font-weight: 700;
-            letter-spacing: .04em;
-            text-transform: uppercase
-        }
-        .risk-badge.critical {
-            background: rgba(224, 82, 72, .2);
-            color: #f5958f
-        }
-        .risk-badge.high {
-            background: rgba(224, 156, 53, .2);
-            color: #f0b55a
-        }
-        .risk-badge.medium {
-            background: rgba(139, 127, 245, .2);
-            color: #a99ff8
-        }
-        .risk-badge.low {
-            background: rgba(77, 191, 130, .2);
-            color: #7ddba8
-        }
-        .risk-item .ri-id {
-            font-family: var(--mono);
-            font-size: 10.5px;
-            color: var(--dim)
-        }
-        .risk-item .ri-drivers {
-            font-size: 10px;
-            color: var(--faint);
-            margin-top: 3px
-        }
-        .risk-bar-bg {
-            background: var(--border);
-            height: 3px;
-            border-radius: 2px;
-            margin-top: 5px
-        }
-        .risk-bar {
-            height: 3px;
-            border-radius: 2px;
-            background: var(--amber);
-            transition: width .4s
-        }
+/* ── risk list ── */
+.risk-item{padding:7px 8px;border:1px solid var(--border);border-radius:2px;margin-bottom:5px;cursor:pointer;transition:border-color .15s}
+.risk-item:hover{border-color:var(--amber)}
+.risk-item .ri-header{display:flex;align-items:center;gap:6px}
+.risk-badge{padding:2px 7px;border-radius:10px;font-size:9.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.risk-badge.critical{background:rgba(224,82,72,.2);color:#f5958f}
+.risk-badge.high{background:rgba(224,156,53,.2);color:#f0b55a}
+.risk-badge.medium{background:rgba(139,127,245,.2);color:#a99ff8}
+.risk-badge.low{background:rgba(77,191,130,.2);color:#7ddba8}
+.risk-item .ri-id{font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+.risk-item .ri-drivers{font-size:10px;color:var(--faint);margin-top:3px}
+.risk-bar-bg{background:var(--border);height:3px;border-radius:2px;margin-top:5px}
+.risk-bar{height:3px;border-radius:2px;background:var(--amber);transition:width .4s}
 
-        /* ── balance chart ── */
-        #balance-chart {
-            width: 100%;
-            height: 140px;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 2px;
-            margin: 10px 0
-        }
+/* ── balance chart ── */
+#balance-chart{width:100%;height:140px;background:var(--bg);border:1px solid var(--border);border-radius:2px;margin:10px 0}
 
-        /* ── connector alert ── */
-        .connector-alert {
-            background: rgba(139, 127, 245, .08);
-            border: 1px solid var(--purple);
-            border-radius: 2px;
-            padding: 8px 10px;
-            margin: 8px 0;
-            font-size: 11px;
-            color: var(--dim)
-        }
-        .connector-alert b {
-            color: var(--purple)
-        }
+/* ── connector alert ── */
+.connector-alert{background:rgba(139,127,245,.08);border:1px solid var(--purple);border-radius:2px;padding:8px 10px;margin:8px 0;font-size:11px;color:var(--dim)}
+.connector-alert b{color:var(--purple)}
 
-        /* ── section heading ── */
-        .section-hd {
-            font-size: 9.5px;
-            letter-spacing: .07em;
-            text-transform: uppercase;
-            color: var(--faint);
-            font-weight: 600;
-            margin: 12px 0 6px;
-            padding-bottom: 4px;
-            border-bottom: 1px solid var(--border)
-        }
+/* ── section heading ── */
+.section-hd{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);font-weight:600;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)}
 
-        /* ── map ── */
-        #map {
-            flex: 1;
-            background: #080e12
-        }
-        .leaflet-container {
-            background: #080e12
-        }
-        .leaflet-control-zoom a {
-            background: var(--panel) !important;
-            color: var(--text) !important;
-            border-color: var(--border) !important
-        }
-        .leaflet-control-zoom a:hover {
-            background: var(--panel2) !important;
-            color: var(--cyan) !important
-        }
+/* ── map ── */
+#map{flex:1;background:#080e12}
+.leaflet-container{background:#080e12}
+.leaflet-control-zoom a{background:var(--panel)!important;color:var(--text)!important;border-color:var(--border)!important}
+.leaflet-control-zoom a:hover{background:var(--panel2)!important;color:var(--cyan)!important}
 
-        /* ── map toolbar ── */
-        #map-toolbar {
-            position: absolute;
-            top: 12px;
-            left: 12px;
-            z-index: 900;
-            display: flex;
-            gap: 6px
-        }
-        .map-btn {
-            background: rgba(17, 26, 31, .92);
-            border: 1px solid var(--border);
-            color: var(--dim);
-            padding: 6px 10px;
-            font-size: 9.5px;
-            font-family: var(--mono);
-            letter-spacing: .04em;
-            cursor: pointer;
-            border-radius: 2px
-        }
-        .map-btn.active,
-        .map-btn:hover {
-            border-color: var(--cyan);
-            color: var(--cyan)
-        }
+/* ── map toolbar ── */
+#map-toolbar{position:absolute;top:12px;left:12px;z-index:900;display:flex;gap:6px}
+.map-btn{background:rgba(17,26,31,.92);border:1px solid var(--border);color:var(--dim);padding:6px 10px;font-size:9.5px;font-family:var(--mono);letter-spacing:.04em;cursor:pointer;border-radius:2px}
+.map-btn.active,.map-btn:hover{border-color:var(--cyan);color:var(--cyan)}
 
-        /* ── map legend ── */
-        #map-legend {
-            position: absolute;
-            bottom: 14px;
-            left: 14px;
-            z-index: 900;
-            background: rgba(11, 18, 21, .93);
-            border: 1px solid var(--border);
-            padding: 8px 10px;
-            border-radius: 2px
-        }
-        .leg-row {
-            display: flex;
-            align-items: center;
-            gap: 7px;
-            font-size: 9.5px;
-            color: var(--dim);
-            margin: 2px 0
-        }
-        .leg-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            flex: none
-        }
-        .leg-line {
-            width: 16px;
-            height: 3px;
-            flex: none
-        }
+/* ── map legend ── */
+#map-legend{position:absolute;bottom:14px;left:14px;z-index:900;background:rgba(11,18,21,.93);border:1px solid var(--border);padding:8px 10px;border-radius:2px}
+.leg-row{display:flex;align-items:center;gap:7px;font-size:9.5px;color:var(--dim);margin:2px 0}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex:none}
+.leg-line{width:16px;height:3px;flex:none}
 
-        /* ── tooltip ── */
-        .info-tooltip {
-            background: rgba(11, 18, 21, .95);
-            border: 1px solid var(--border2);
-            padding: 6px 9px;
-            border-radius: 2px;
-            font-size: 10.5px;
-            font-family: var(--mono);
-            color: var(--text);
-            pointer-events: none
-        }
-    </style>
+/* ── tooltip ── */
+.info-tooltip{background:rgba(11,18,21,.95);border:1px solid var(--border2);padding:6px 9px;border-radius:2px;font-size:10.5px;font-family:var(--mono);color:var(--text);pointer-events:none}
+
+/* ── HIDE DEFAULT LEAFLET MARKER ICONS ── */
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+    display: none !important;
+}
+</style>
 </head>
 <body>
-    <div id="app">
-
-        <aside id="sidebar">
-            <div id="sidebar-header">
-                <h1>DMA WATER LEAKAGE EXPLORER</h1>
-                <p id="conn-status">not connected</p>
-            </div>
-
-            <div id="sidebar-tabs">
-                <div class="tab active" data-tab="setup">SETUP</div>
-                <div class="tab" data-tab="layers">LAYERS</div>
-                <div class="tab" data-tab="simulate">SIMULATE</div>
-                <div class="tab" data-tab="leakage">LEAKAGE</div>
-            </div>
-
-            <div id="sidebar-body">
-
-                <!-- SETUP tab -->
-                <div class="tab-pane active" id="tab-setup">
-                    <div class="field"><label>SERVICE URL</label><input id="api-base" value="http://localhost:8080" /></div>
-                    <div class="field"><label>API KEY</label><input id="api-key" type="password" placeholder="X-API-Key" /></div>
-                    <button class="btn primary" id="btn-connect">Connect</button>
-                    <div class="field" style="margin-top:12px"><label>GPKG FILE</label>
-                        <select id="file-select"><option>— connect first —</option></select>
-                    </div>
-                    <button class="btn" id="btn-load-layers">Load DMA Layers onto Map</button>
-                    <div id="setup-stats" style="display:none">
-                        <div class="statgrid three" id="setup-statgrid"></div>
-                        <div id="connector-alert" class="connector-alert" style="display:none"></div>
-                    </div>
-                    <div id="err-setup" style="color:var(--red);font-size:10.5px;margin-top:8px;font-family:var(--mono)"></div>
-                </div>
-
-                <!-- LAYERS tab -->
-                <div class="tab-pane" id="tab-layers">
-                    <p class="section-hd">Visible layers</p>
-                    <div id="layer-controls">
-                        <p style="color:var(--faint);font-size:11px">Load a DMA file first</p>
-                    </div>
-                </div>
-
-                <!-- SIMULATE tab -->
-                <div class="tab-pane" id="tab-simulate">
-                    <p class="section-hd">Simulation parameters</p>
-                    <div class="row2">
-                        <div class="field"><label>DURATION (hrs)</label><input type="number" id="sim-duration" value="24" /></div>
-                        <div class="field"><label>TIME STEP (min)</label><input type="number" id="sim-timestep" value="60" /></div>
-                    </div>
-                    <div class="row2">
-                        <div class="field"><label>BASE DEMAND (m³/h/node)</label><input type="number" id="sim-demand" value="0.011" step="0.001" /></div>
-                        <div class="field"><label>LEAKAGE FRACTION</label><input type="number" id="sim-leakage" value="0.20" step="0.01" /></div>
-                    </div>
-                    <div class="field"><label>SCENARIO NAME</label><input type="text" id="sim-name" value="DMA baseline run" /></div>
-                    <button class="btn primary" id="btn-run-sim" disabled>Run Hydraulic Simulation</button>
-                    <div id="sim-status" class="status-bar" style="display:none"></div>
-                    <div id="sim-summary" style="display:none">
-                        <div class="statgrid" id="sim-statgrid"></div>
-                        <button class="btn" id="btn-load-leakage" style="margin-top:10px">View Leakage Analysis →</button>
-                    </div>
-                    <div id="err-sim" style="color:var(--red);font-size:10.5px;margin-top:8px;font-family:var(--mono)"></div>
-                </div>
-
-                <!-- LEAKAGE tab -->
-                <div class="tab-pane" id="tab-leakage">
-                    <p style="color:var(--faint);font-size:11px" id="leakage-placeholder">Run a simulation first, then click "View Leakage Analysis"</p>
-                    <div id="leakage-content" style="display:none">
-                        <p class="section-hd">NON-REVENUE WATER</p>
-                        <div class="statgrid" id="nrw-grid"></div>
-                        <p class="section-hd">PRESSURE ZONES</p>
-                        <div id="pressure-zones"></div>
-                        <p class="section-hd">FLOW BALANCE (hourly)</p>
-                        <canvas id="balance-chart"></canvas>
-                        <p class="section-hd">HIGH-RISK PIPES (top 20)</p>
-                        <div id="risk-list"></div>
-                        <div id="leakage-warnings"></div>
-                    </div>
-                </div>
-
-            </div><!-- sidebar-body -->
-        </aside>
-
-        <main id="map" style="position:relative">
-            <div id="map-toolbar"></div>
-            <div id="map-legend" style="display:none">
-                <div class="leg-row"><div class="leg-line" style="background:var(--cyan)"></div>Pipes</div>
-                <div class="leg-row"><div class="leg-dot" style="background:#4adf6e"></div>Borehole source</div>
-                <div class="leg-row"><div class="leg-dot" style="background:#5aaddf"></div>Storage tank</div>
-                <div class="leg-row"><div class="leg-dot" style="background:#e0c048"></div>Valve</div>
-                <div class="leg-row"><div class="leg-dot" style="background:#d67bf0"></div>Bulk meter</div>
-                <div class="leg-row"><div class="leg-line" style="background:var(--purple);border-bottom:2px dashed var(--purple)"></div>Synthetic connector</div>
-                <div class="leg-row"><div class="leg-dot" style="background:var(--red)"></div>Critical risk</div>
-                <div class="leg-row"><div class="leg-dot" style="background:var(--amber)"></div>High/medium risk</div>
-                <div class="leg-row"><div class="leg-dot" style="background:var(--green)"></div>Low pressure (&lt;7m)</div>
-            </div>
-        </main>
-
-    </div><!-- app -->
-
-    <script>
-        (function() {
-            "use strict";
-
-            // ── state ──────────────────────────────────────────────────────────────────
-            const S = {
-                apiBase: "http://localhost:8080",
-                apiKey: "",
-                file: null,
-                scenarioId: null,
-                pollTimer: null,
-                layers: {},
-                connectorGJ: null,
-                leakageData: null,
-            };
-
-            // ── map ────────────────────────────────────────────────────────────────────
-
-            // 1) Create the map
-            const map = L.map("map", {
-                preferCanvas: true,
-                zoomControl: false
-            });
-
-            // 2) Set Tanzania bounds
-            const tanzaniaBounds = [
-                [-11.8, 29.3], // Southwest
-                [-0.9, 40.5] // Northeast
-            ];
-            map.fitBounds(tanzaniaBounds);
-
-            // 3) Tile layer
-            L.tileLayer(
-                "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-                    attribution: "&copy; OSM &copy; CARTO",
-                    maxZoom: 20,
-                    subdomains: "abcd"
-                }
-            ).addTo(map);
-
-            // Zoom control
-            L.control.zoom({ position: "topright" }).addTo(map);
-
-            // Layer groups
-            const lgroups = {
-                boundary: L.layerGroup().addTo(map),
-                pipes: L.layerGroup().addTo(map),
-                connectors: L.layerGroup().addTo(map),
-                sources: L.layerGroup().addTo(map),
-                tanks: L.layerGroup().addTo(map),
-                valves: L.layerGroup().addTo(map),
-                bulk_meters: L.layerGroup().addTo(map),
-                sim_nodes: L.layerGroup().addTo(map),
-                sim_pipes: L.layerGroup().addTo(map),
-                hotspots: L.layerGroup().addTo(map),
-            };
-
-            // ── helpers ────────────────────────────────────────────────────────────────
-            const $ = id => document.getElementById(id);
-            const on = (id, ev, fn) => $(id)?.addEventListener(ev, fn);
-
-            function showErr(id, msg) { const e = $(id);
-                e.textContent = msg || "";
-                e.style.display = msg ? "block" : "none"; }
-
-            function setStatus(id, status, msg) {
-                const el = $(id);
-                el.style.display = "block";
-                el.className = "status-bar " + status.toLowerCase();
-                el.textContent = `[${status}] ${msg || ""}`;
-            }
-
-            function switchTab(name) {
-                document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
-                document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("active", p.id === "tab-" + name));
-            }
-
-            async function api(path, opts = {}) {
-                const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
-                if (S.apiKey) headers["X-API-Key"] = S.apiKey;
-                const r = await fetch(S.apiBase.replace(/\/$/, "") + path, { ...opts, headers });
-                if (!r.ok) { let d = r.statusText; try { const j = await r.json();
-                        d = j.detail || JSON.stringify(j); } catch (e) {} throw new Error(`${r.status}: ${d}`); }
-                return r.json();
-            }
-
-            // ── tab switching ──────────────────────────────────────────────────────────
-            document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => switchTab(t.dataset.tab)));
-
-            // ── SETUP ──────────────────────────────────────────────────────────────────
-            on("btn-connect", "click", async () => {
-                S.apiBase = $("api-base").value.trim();
-                S.apiKey = $("api-key").value.trim();
-                try {
-                    await fetch(S.apiBase.replace(/\/$/, "") + "/health");
-                    $("conn-status").textContent = "connected to " + S.apiBase.split("//")[1];
-                    const files = await api("/files");
-                    const sel = $("file-select");
-                    sel.innerHTML = files.map(f => `<option value="${f.filename}">${f.filename}</option>`).join("");
-                    S.file = files[0]?.filename;
-                } catch (e) {
-                    $("conn-status").textContent = "connection failed";
-                    showErr("err-setup", e.message);
-                }
-            });
-            $("file-select")?.addEventListener("change", e => S.file = e.target.value);
-
-            on("btn-load-layers", "click", async () => {
-                showErr("err-setup", null);
-                if (!S.file) { showErr("err-setup", "Connect and select a file first."); return; }
-                try {
-                    const data = await api(`/dma/${encodeURIComponent(S.file)}/layers`);
-                    renderDMALayers(data);
-                    $("btn-run-sim").disabled = false;
-                    switchTab("layers");
-                } catch (e) { showErr("err-setup", e.message); }
-            });
-
-            function renderDMALayers(data) {
-                // Clear all existing layers
-                Object.values(lgroups).forEach(g => g.clearLayers());
-                S.connectorGJ = null;
-
-                // Boundary polygon
-                if (data.boundary?.features?.length) {
-                    L.geoJSON(data.boundary, { style: () => ({ color: "#3fc7d6", weight: 2, fillOpacity: .04,
-                            dashArray: "6 4" }) }).addTo(lgroups.boundary);
-                    try {
-                        // 4) Zoom to DMA boundary after data loads
-                        map.fitBounds(
-                            L.geoJSON(data.boundary).getBounds(), { padding: [30, 30] }
-                        );
-                    } catch (e) {}
-                }
-
-                // Pipes
-                if (data.pipes?.features?.length) {
-                    L.geoJSON(data.pipes, {
-                        style: f => ({
-                            color: f.properties.hw_c >= 140 ? "#3fc7d6" : f.properties.hw_c >= 130 ? "#5aaddf" :
-                                "#8ba0ad",
-                            weight: Math.max(1.5, Math.min(4, f.properties.diam_mm / 40)),
-                            opacity: .7,
-                        }),
-                        onEachFeature: (f, l) => {
-                            l.bindTooltip(`
-                          <div class="info-tooltip">
-                            <b>Pipe ${f.properties.fid}</b><br>
-                            &oslash;${f.properties.diam_mm}mm &bull; ${f.properties.material} &bull; C=${f.properties.hw_c}<br>
-                            ${f.properties.length_m}m &bull; ${f.properties.purpose||""}
-                          </div>`, { sticky: true });
-                        }
-                    }).addTo(lgroups.pipes);
-                }
-
-                // Sources (boreholes)
-                (data.sources?.features || []).forEach(f => {
-                    const [lon, lat] = f.geometry.coordinates;
-                    const p = f.properties;
-                    L.circleMarker([lat, lon], { radius: 9, color: "#071820", weight: 2, fillColor: "#4adf6e",
-                            fillOpacity: 1 })
-                        .bindTooltip(
-                            `<div class="info-tooltip"><b>${p.name}</b><br>Borehole &bull; ${p.elev_m}m ASL<br>Yield: ${p.yield_m3h||"?"}m³/h &bull; Head: ${p.total_head_m}m</div>`, { sticky: true })
-                        .addTo(lgroups.sources);
-                });
-
-                // Tanks
-                (data.tanks?.features || []).forEach(f => {
-                    const [lon, lat] = f.geometry.coordinates;
-                    const p = f.properties;
-                    L.circleMarker([lat, lon], { radius: 9, color: "#071820", weight: 2, fillColor: "#5aaddf",
-                            fillOpacity: 1 })
-                        .bindTooltip(
-                            `<div class="info-tooltip"><b>${p.name}</b><br>Tank &bull; ${p.elev_m}m ASL<br>Cap: ${p.cap_m3||"?"}m³ &bull; D: ${p.diameter_m}m</div>`, { sticky: true })
-                        .addTo(lgroups.tanks);
-                });
-
-                // Valves
-                (data.valves?.features || []).forEach(f => {
-                    const [lon, lat] = f.geometry.coordinates;
-                    const p = f.properties;
-                    L.circleMarker([lat, lon], { radius: 5, color: "#071820", weight: 1.5, fillColor: p
-                                .is_isolation ? "#e0c048" : "#bfc0c8", fillOpacity: .9 })
-                        .bindTooltip(`<div class="info-tooltip">${p.valve_type}<br>&oslash;${p.diam_mm}mm</div>`, { sticky: true })
-                        .addTo(lgroups.valves);
-                });
-
-                // Bulk meters
-                (data.bulk_meters?.features || []).forEach(f => {
-                    const [lon, lat] = f.geometry.coordinates;
-                    const p = f.properties;
-                    L.circleMarker([lat, lon], { radius: 8, color: "#071820", weight: 2, fillColor: "#d67bf0",
-                            fillOpacity: 1 })
-                        .bindTooltip(`<div class="info-tooltip"><b>Bulk Meter</b><br>${f.properties.name}</div>`, { sticky: true })
-                        .addTo(lgroups.bulk_meters);
-                });
-
-                // Stats panel
-                const st = data.stats;
-                $("setup-stats").style.display = "block";
-                $("setup-statgrid").innerHTML = `
-                <div class="stat"><div class="v">${st.pipe_count}</div><div class="l">Pipes</div></div>
-                <div class="stat"><div class="v">${st.source_count}</div><div class="l">Sources</div></div>
-                <div class="stat"><div class="v">${st.tank_count}</div><div class="l">Tanks</div></div>
-                <div class="stat"><div class="v">${st.valve_count}</div><div class="l">Valves</div></div>
-                <div class="stat"><div class="v">${st.bulk_meter_count}</div><div class="l">Bulk meters</div></div>
-                <div class="stat"><div class="v">${(st.total_pipe_length_m/1000).toFixed(2)}</div><div class="l">Total km</div></div>`;
-
-                buildLayerControls(data);
-                $("map-legend").style.display = "block";
-                buildToolbar();
-            }
-
-            function buildLayerControls(data) {
-                const st = data.stats;
-                const defs = [
-                    { id: "boundary", label: "DMA boundary", count: "1 polygon", color: "var(--cyan)" },
-                    { id: "pipes", label: "Distribution pipes", count: `${st.pipe_count}`, color: "var(--cyan)" },
-                    { id: "sources", label: "Water sources", count: `${st.source_count}`, color: "#4adf6e" },
-                    { id: "tanks", label: "Storage tanks", count: `${st.tank_count}`, color: "var(--blue)" },
-                    { id: "valves", label: "Valves", count: `${st.valve_count}`, color: "#e0c048" },
-                    { id: "bulk_meters", label: "Bulk meters", count: `${st.bulk_meter_count}`, color: "#d67bf0" },
-                    { id: "connectors", label: "Synthetic connectors", count: "0", color: "var(--purple)" },
-                    { id: "sim_nodes", label: "Pressure results", count: "run sim", color: "var(--amber)" },
-                    { id: "hotspots", label: "Leakage hotspots", count: "run sim", color: "var(--red)" },
-                ];
-                $("layer-controls").innerHTML = defs.map(d => `
-                <div class="layer-row">
-                  <div class="layer-swatch" style="background:${d.color}"></div>
-                  <div class="lname">${d.label}</div>
-                  <div class="lcount" id="lc-${d.id}">${d.count}</div>
-                  <div class="toggle on" id="tog-${d.id}" data-layer="${d.id}"></div>
-                </div>`).join("");
-
-                document.querySelectorAll(".toggle").forEach(tog => {
-                    tog.addEventListener("click", () => {
-                        const lid = tog.dataset.layer;
-                        const on = tog.classList.toggle("on");
-                        if (on) map.addLayer(lgroups[lid]);
-                        else map.removeLayer(lgroups[lid]);
-                    });
-                });
-            }
-
-            function buildToolbar() {
-                $("map-toolbar").innerHTML = `
-                <div class="map-btn" id="mb-fit">FIT MAP</div>
-                <div class="map-btn" id="mb-pipes">PIPES</div>
-                <div class="map-btn" id="mb-pressure">PRESSURE</div>
-                <div class="map-btn" id="mb-risk">RISK HOTSPOTS</div>`;
-                on("mb-fit", "click", () => {
-                    try {
-                        map.fitBounds(lgroups.pipes.getLayers()[0]?.getBounds() || lgroups.boundary.getLayers()[0]
-                            ?.getBounds(), { padding: [20, 20] });
-                    } catch (e) {}
-                });
-                on("mb-pipes", "click", () => { switchLayers("pipes"); });
-                on("mb-pressure", "click", () => { switchLayers("sim_nodes"); });
-                on("mb-risk", "click", () => { switchLayers("hotspots"); });
-            }
-
-            function switchLayers(active) {
-                ["pipes", "sim_nodes", "hotspots"].forEach(lid => {
-                    const show = lid === active || lid === "boundary";
-                    if (show) map.addLayer(lgroups[lid]);
-                    else map.removeLayer(lgroups[lid]);
-                    const tog = $(`tog-${lid}`);
-                    if (tog) tog.classList.toggle("on", show);
-                });
-            }
-
-            // ── SIMULATE ───────────────────────────────────────────────────────────────
-            on("btn-run-sim", "click", async () => {
-                showErr("err-sim", null);
-                $("sim-summary").style.display = "none";
-                if (!S.file) { showErr("err-sim", "Load a DMA file first."); return; }
-                try {
-                    const body = {
-                        name: $("sim-name").value || "DMA run",
-                        duration_hrs: parseInt($("sim-duration").value) || 24,
-                        time_step_min: parseInt($("sim-timestep").value) || 60,
-                        base_demand_m3h: parseFloat($("sim-demand").value) || 0.011,
-                        leakage_frac: parseFloat($("sim-leakage").value) || 0.20,
-                    };
-                    const resp = await api(`/dma/${encodeURIComponent(S.file)}/simulate`, { method: "POST",
-                        body: JSON.stringify(body) });
-                    S.scenarioId = resp.id;
-                    setStatus("sim-status", "PENDING", "queued…");
-
-                    // Show topology repair info
-                    const rep = resp.topology_repair;
-                    if (rep && rep.connectors_added > 0) {
-                        renderConnectors(rep.connectors_geojson, rep.connectors_added, rep.total_connector_length_m);
-                    }
-
-                    if (S.pollTimer) clearInterval(S.pollTimer);
-                    S.pollTimer = setInterval(pollScenario, 2500);
-                    pollScenario();
-                } catch (e) { showErr("err-sim", e.message); }
-            });
-
-            async function pollScenario() {
-                if (!S.scenarioId) return;
-                try {
-                    const d = await api(`/simulate/${S.scenarioId}`);
-                    if (d.status === "PENDING" || d.status === "RUNNING") {
-                        setStatus("sim-status", d.status, "simulating…");
-                    } else if (d.status === "DONE") {
-                        clearInterval(S.pollTimer);
-                        setStatus("sim-status", "DONE", "complete");
-                        renderSimSummary(d.summary);
-                        await renderSimResults(0);
-                        switchTab("simulate");
-                    } else {
-                        clearInterval(S.pollTimer);
-                        setStatus("sim-status", "FAILED", d.error_message || "unknown error");
-                    }
-                } catch (e) { clearInterval(S.pollTimer);
-                    showErr("err-sim", e.message); }
-            }
-
-            function renderSimSummary(s) {
-                $("sim-summary").style.display = "block";
-                const col = v => v > 45 ? "red" : v < 7 ? "green" : "";
-                $("sim-statgrid").innerHTML = `
-                <div class="stat"><div class="v ${col(s.pressure_avg_m)}">${s.pressure_avg_m}</div><div class="l">Avg Pressure m</div></div>
-                <div class="stat"><div class="v">${s.pressure_min_m}</div><div class="l">Min Pressure m</div></div>
-                <div class="stat"><div class="v">${s.pressure_max_m}</div><div class="l">Max Pressure m</div></div>
-                <div class="stat"><div class="v ${s.low_pressure_nodes>0?"red":""}">${s.low_pressure_nodes}</div><div class="l">Low-pres nodes</div></div>
-                <div class="stat"><div class="v">${s.total_pipes}</div><div class="l">Pipes simulated</div></div>
-                <div class="stat"><div class="v">${s.time_steps}</div><div class="l">Time steps</div></div>`;
-            }
-
-            async function renderSimResults(step) {
-                lgroups.sim_nodes.clearLayers();
-                lgroups.sim_pipes.clearLayers();
-                try {
-                    const [nodes, pipes] = await Promise.all([
-                        api(`/simulate/${S.scenarioId}/geojson/nodes?time_step=${step}`),
-                        api(`/simulate/${S.scenarioId}/geojson/pipes?time_step=${step}`),
-                    ]);
-                    L.geoJSON(pipes, { style: () => ({ color: "#3a5568", weight: 1.5, opacity: .6 }) }).addTo(lgroups
-                        .sim_pipes);
-                    nodes.features.forEach(f => {
-                        if (!f.geometry) return;
-                        const [lon, lat] = f.geometry.coordinates;
-                        const p = f.properties;
-                        const col = p.is_low_pressure ? "#4dbf82" : p.pressure > 45 ? "#e05248" : p.pressure >
-                            30 ? "#e09c35" : "#5aaddf";
-                        L.circleMarker([lat, lon], { radius: p.is_low_pressure ? 6 : 4, color: "#080e12",
-                                weight: 1, fillColor: col, fillOpacity: .9 })
-                            .bindTooltip(
-                                `<div class="info-tooltip"><b>${p.element_id}</b><br>Pressure: ${p.pressure||"?"}m${p.is_low_pressure?" ⚠ LOW":""}</div>`, { sticky: true })
-                            .addTo(lgroups.sim_nodes);
-                    });
-                    map.addLayer(lgroups.sim_nodes);
-                    map.addLayer(lgroups.sim_pipes);
-                } catch (e) {}
-            }
-
-            function renderConnectors(gj, count, totalLen) {
-                lgroups.connectors.clearLayers();
-                if (!gj?.features?.length) return;
-                L.geoJSON(gj, {
-                    style: () => ({ color: "#8b7ff5", weight: 2.5, dashArray: "6 4", opacity: .85 }),
-                    onEachFeature: (f, l) => {
-                        const p = f.properties;
-                        l.bindTooltip(
-                            `<div class="info-tooltip"><b>${p.id}</b><br>${p.length_m}m &bull; ${p.material}<br><span style="color:var(--faint)">${p.reason.slice(0,80)}</span></div>`, { sticky: true });
-                    }
-                }).addTo(lgroups.connectors);
-                $("lc-connectors").textContent = `${count}`;
-                const alert = $("connector-alert");
-                alert.style.display = "block";
-                alert.innerHTML =
-                    `<b>${count} synthetic connector pipe${count>1?"s":""} added</b> (${totalLen}m total) to make the DMA network fully connected. Verify these in the field before using simulation results for investment decisions.`;
-            }
-
-            // ── LEAKAGE ────────────────────────────────────────────────────────────────
-            on("btn-load-leakage", "click", async () => {
-                switchTab("leakage");
-                if (!S.scenarioId) return;
-                try {
-                    const d = await api(`/dma/${encodeURIComponent(S.file)}/simulate/${S.scenarioId}/leakage`);
-                    S.leakageData = d;
-                    renderLeakage(d);
-                } catch (e) {
-                    $("leakage-placeholder").textContent = "Failed to load: " + e.message;
-                }
-            });
-
-            function renderLeakage(d) {
-                $("leakage-placeholder").style.display = "none";
-                $("leakage-content").style.display = "block";
-
-                // NRW grid
-                const nrw = d.nrw;
-                const ilicol = nrw.ili > 8 ? "red" : nrw.ili > 4 ? "amber" : "green";
-                $("nrw-grid").innerHTML = `
-                <div class="stat"><div class="v ${nrw.nrw_pct>30?"red":nrw.nrw_pct>20?"amber":"green"}">${nrw.nrw_pct}%</div><div class="l">NRW</div></div>
-                <div class="stat"><div class="v">${nrw.nrw_m3h}</div><div class="l">NRW m³/h</div></div>
-                <div class="stat"><div class="v">${nrw.real_loss_m3h}</div><div class="l">Real loss m³/h</div></div>
-                <div class="stat"><div class="v">${nrw.system_input_m3h}</div><div class="l">System input m³/h</div></div>
-                <div class="stat"><div class="v">${nrw.authorised_m3h}</div><div class="l">Authorised m³/h</div></div>
-                <div class="stat"><div class="v ${ilicol}">${nrw.ili}</div><div class="l">ILI index</div></div>`;
-
-                // Pressure zones
-                $("pressure-zones").innerHTML = d.pressure_zones.map(z => `
-                <div style="display:flex;align-items:center;gap:8px;margin:4px 0">
-                  <div style="width:9px;height:9px;border-radius:50%;background:${z.zone==="low"?"var(--green)":z.zone==="high"?"var(--red)":"var(--blue)"};flex:none"></div>
-                  <div style="font-size:11px;flex:1;color:var(--text)">${z.zone.toUpperCase()} pressure</div>
-                  <div style="font-family:var(--mono);font-size:10.5px;color:var(--cyan)">${z.count} nodes (${z.pct}%)</div>
-                </div>
-                <div style="background:var(--border);height:3px;border-radius:2px;margin-bottom:6px">
-                  <div style="height:3px;border-radius:2px;width:${z.pct}%;background:${z.zone==="low"?"var(--green)":z.zone==="high"?"var(--red)":"var(--blue)"}"></div>
-                </div>`).join("");
-
-                // Balance chart
-                drawBalanceChart(d.timestep_balance);
-
-                // Risk list
-                const risks = d.pipe_risks_top20 || [];
-                $("risk-list").innerHTML = risks.map(r => `
-                <div class="risk-item" data-lat="${r.lat}" data-lon="${r.lon}">
-                  <div class="ri-header">
-                    <span class="risk-badge ${r.risk_level}">${r.risk_level}</span>
-                    <span class="ri-id">${r.pipe_id}</span>
-                    <span style="flex:1"></span>
-                    <span style="font-family:var(--mono);font-size:10px;color:var(--amber)">${(r.risk_score*100).toFixed(0)}%</span>
-                  </div>
-                  <div class="ri-drivers">${r.drivers.join(" · ")}</div>
-                  <div class="risk-bar-bg"><div class="risk-bar" style="width:${r.risk_score*100}%;background:${r.risk_level==="critical"?"var(--red)":r.risk_level==="high"?"var(--amber)":"var(--purple)"}"></div></div>
-                </div>`).join("");
-
-                document.querySelectorAll(".risk-item").forEach(el => {
-                    el.addEventListener("click", () => {
-                        const lat = parseFloat(el.dataset.lat),
-                            lon = parseFloat(el.dataset.lon);
-                        if (lat && lon) map.flyTo([lat, lon], 17, { duration: 1 });
-                    });
-                });
-
-                // Warnings
-                $("leakage-warnings").innerHTML = (d.warnings || []).map(w =>
-                    `<div style="color:var(--amber);font-size:10.5px;font-family:var(--mono);margin-top:6px;padding:6px 8px;border:1px solid var(--amber2);border-radius:2px">⚠ ${w}</div>`
-                ).join("");
-
-                // Hotspots on map
-                renderHotspots(d.hotspots_geojson);
-            }
-
-            function drawBalanceChart(balance) {
-                const canvas = $("balance-chart");
-                if (!canvas || !balance?.length) return;
-                const ctx = canvas.getContext("2d");
-                canvas.width = canvas.offsetWidth || 360;
-                canvas.height = 140;
-                const W = canvas.width,
-                    H = canvas.height;
-                const pad = { t: 10, r: 8, b: 24, l: 38 };
-                ctx.fillStyle = "#080e12";
-                ctx.fillRect(0, 0, W, H);
-
-                const maxVal = Math.max(...balance.map(b => b.inflow_m3h), 1);
-                const sx = (i) => pad.l + (i / (balance.length - 1 || 1)) * (W - pad.l - pad.r);
-                const sy = (v) => pad.t + (1 - v / maxVal) * (H - pad.t - pad.b);
-
-                // Grid
-                ctx.strokeStyle = "#1e2e36";
-                ctx.lineWidth = 1;
-                [0.25, 0.5, 0.75, 1].forEach(f => {
-                    const y = sy(f * maxVal);
-                    ctx.beginPath();
-                    ctx.moveTo(pad.l, y);
-                    ctx.lineTo(W - pad.r, y);
-                    ctx.stroke();
-                    ctx.fillStyle = "#3d5560";
-                    ctx.font = "9px monospace";
-                    ctx.fillText((f * maxVal).toFixed(1), 2, y + 3);
-                });
-
-                // Inflow line
-                ctx.beginPath();
-                ctx.strokeStyle = "#3fc7d6";
-                ctx.lineWidth = 2;
-                balance.forEach((b, i) => { const x = sx(i),
-                        y = sy(b.inflow_m3h);
-                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
-                ctx.stroke();
-
-                // Demand line
-                ctx.beginPath();
-                ctx.strokeStyle = "#4dbf82";
-                ctx.lineWidth = 1.5;
-                ctx.setLineDash([3, 3]);
-                balance.forEach((b, i) => { const x = sx(i),
-                        y = sy(b.demand_m3h);
-                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
-                ctx.stroke();
-                ctx.setLineDash([]);
-
-                // NRW fill
-                ctx.beginPath();
-                ctx.fillStyle = "rgba(224,82,72,.18)";
-                balance.forEach((b, i) => { const x = sx(i);
-                    i === 0 ? ctx.moveTo(x, sy(b.inflow_m3h)) : ctx.lineTo(x, sy(b.inflow_m3h)); });
-                for (let i = balance.length - 1; i >= 0; i--) { const b = balance[i];
-                    ctx.lineTo(sx(i), sy(b.demand_m3h)); }
-                ctx.closePath();
-                ctx.fill();
-
-                // X labels
-                ctx.fillStyle = "#3d5560";
-                ctx.font = "9px monospace";
-                balance.filter((_, i) => i % 4 === 0).forEach(b => { ctx.fillText(b.hour + "h", sx(b.hour) - 6, H -
-                        6); });
-
-                // Legend
-                ctx.fillStyle = "#3fc7d6";
-                ctx.fillRect(W - 70, H - 20, 14, 2);
-                ctx.fillStyle = "#7591a0";
-                ctx.font = "9px monospace";
-                ctx.fillText("Inflow", W - 52, H - 17);
-                ctx.fillStyle = "#4dbf82";
-                ctx.fillRect(W - 70, H - 10, 14, 2);
-                ctx.fillStyle = "#7591a0";
-                ctx.fillText("Demand", W - 52, H - 7);
-            }
-
-            function renderHotspots(gj) {
-                lgroups.hotspots.clearLayers();
-                if (!gj?.features?.length) return;
-                gj.features.forEach(f => {
-                    const [lon, lat] = f.geometry.coordinates;
-                    const p = f.properties;
-                    const col = p.risk_level === "critical" ? "#e05248" : p.risk_level === "high" ? "#e09c35" :
-                        "#8b7ff5";
-                    const r = p.risk_level === "critical" ? 8 : p.risk_level === "high" ? 6 : 4;
-                    L.circleMarker([lat, lon], { radius: r, color: "#080e12", weight: 1.5, fillColor: col,
-                            fillOpacity: .9 })
-                        .bindTooltip(
-                            `<div class="info-tooltip"><b>${p.pipe_id}</b> <span style="color:${col}">${p.risk_level.toUpperCase()}</span><br>Score: ${(p.risk_score*100).toFixed(0)}%<br>${p.drivers}</div>`, { sticky: true })
-                        .addTo(lgroups.hotspots);
-                });
-                $("lc-hotspots").textContent = gj.features.length;
-            }
-
-        })();
-    </script>
+<div id="app">
+
+<aside id="sidebar">
+  <div id="sidebar-header">
+    <h1>DMA Water LEAKAGE EXPLORER</h1>
+    <p id="conn-status">not connected</p>
+  </div>
+
+  <div id="sidebar-tabs">
+    <div class="tab active" data-tab="setup">SETUP</div>
+    <div class="tab" data-tab="layers">LAYERS</div>
+    <div class="tab" data-tab="simulate">SIMULATE</div>
+    <div class="tab" data-tab="leakage">LEAKAGE</div>
+  </div>
+
+  <div id="sidebar-body">
+
+    <!-- SETUP tab -->
+    <div class="tab-pane active" id="tab-setup">
+      <div class="field"><label>SERVICE URL</label><input id="api-base" value="http://localhost:8080"/></div>
+      <div class="field"><label>API KEY</label><input id="api-key" type="password" placeholder="X-API-Key"/></div>
+      <button class="btn primary" id="btn-connect">Connect</button>
+      <div class="field" style="margin-top:12px"><label>GPKG FILE</label>
+        <select id="file-select"><option>— connect first —</option></select>
+      </div>
+      <button class="btn" id="btn-load-layers">Load DMA Layers onto Map</button>
+      <div id="setup-stats" style="display:none">
+        <div class="statgrid three" id="setup-statgrid"></div>
+        <div id="connector-alert" class="connector-alert" style="display:none"></div>
+      </div>
+      <div id="err-setup" style="color:var(--red);font-size:10.5px;margin-top:8px;font-family:var(--mono)"></div>
+    </div>
+
+    <!-- LAYERS tab -->
+    <div class="tab-pane" id="tab-layers">
+      <p class="section-hd">Visible layers</p>
+      <div id="layer-controls">
+        <p style="color:var(--faint);font-size:11px">Load a DMA file first</p>
+      </div>
+    </div>
+
+    <!-- SIMULATE tab -->
+    <div class="tab-pane" id="tab-simulate">
+      <p class="section-hd">Simulation parameters</p>
+      <div class="row2">
+        <div class="field"><label>DURATION (hrs)</label><input type="number" id="sim-duration" value="24"/></div>
+        <div class="field"><label>TIME STEP (min)</label><input type="number" id="sim-timestep" value="60"/></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>BASE DEMAND (m³/h/node)</label><input type="number" id="sim-demand" value="0.011" step="0.001"/></div>
+        <div class="field"><label>LEAKAGE FRACTION</label><input type="number" id="sim-leakage" value="0.20" step="0.01"/></div>
+      </div>
+      <div class="field"><label>SCENARIO NAME</label><input type="text" id="sim-name" value="DMA baseline run"/></div>
+      <button class="btn primary" id="btn-run-sim" disabled>Run Hydraulic Simulation</button>
+      <div id="sim-status" class="status-bar" style="display:none"></div>
+      <div id="sim-summary" style="display:none">
+        <div class="statgrid" id="sim-statgrid"></div>
+        <button class="btn" id="btn-load-leakage" style="margin-top:10px">View Leakage Analysis →</button>
+      </div>
+      <div id="err-sim" style="color:var(--red);font-size:10.5px;margin-top:8px;font-family:var(--mono)"></div>
+    </div>
+
+    <!-- LEAKAGE tab -->
+    <div class="tab-pane" id="tab-leakage">
+      <p style="color:var(--faint);font-size:11px" id="leakage-placeholder">Run a simulation first, then click "View Leakage Analysis"</p>
+      <div id="leakage-content" style="display:none">
+        <p class="section-hd">NON-REVENUE WATER</p>
+        <div class="statgrid" id="nrw-grid"></div>
+        <p class="section-hd">PRESSURE ZONES</p>
+        <div id="pressure-zones"></div>
+        <p class="section-hd">FLOW BALANCE (hourly)</p>
+        <canvas id="balance-chart"></canvas>
+        <p class="section-hd">HIGH-RISK PIPES (top 20)</p>
+        <div id="risk-list"></div>
+        <div id="leakage-warnings"></div>
+      </div>
+    </div>
+
+  </div><!-- sidebar-body -->
+</aside>
+
+<main id="map" style="position:relative">
+  <div id="map-toolbar"></div>
+  <div id="map-legend" style="display:none">
+    <div class="leg-row"><div class="leg-line" style="background:var(--cyan)"></div>Pipes</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#4adf6e"></div>Borehole source</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#5aaddf"></div>Storage tank</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#e0c048"></div>Valve</div>
+    <div class="leg-row"><div class="leg-dot" style="background:#d67bf0"></div>Bulk meter</div>
+    <div class="leg-row"><div class="leg-line" style="background:var(--purple);border-bottom:2px dashed var(--purple)"></div>Synthetic connector</div>
+    <div class="leg-row"><div class="leg-dot" style="background:var(--red)"></div>Critical risk</div>
+    <div class="leg-row"><div class="leg-dot" style="background:var(--amber)"></div>High/medium risk</div>
+    <div class="leg-row"><div class="leg-dot" style="background:var(--green)"></div>Low pressure (&lt;7m)</div>
+  </div>
+</main>
+
+</div><!-- app -->
+
+<script>
+(function(){
+"use strict";
+
+// ── state ──────────────────────────────────────────────────────────────────
+const S = {
+  apiBase: "http://localhost:8080", apiKey: "",
+  file: null, scenarioId: null, pollTimer: null,
+  layers: {}, connectorGJ: null, leakageData: null,
+};
+
+// ── map ────────────────────────────────────────────────────────────────────
+const map = L.map("map",{preferCanvas:true,zoomControl:false}).setView([-6.13,35.83],14);
+L.control.zoom({position:"topright"}).addTo(map);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{
+  attribution:"&copy; OSM &copy; CARTO", maxZoom:20, subdomains:"abcd"
+}).addTo(map);
+
+const lgroups = {
+  boundary:    L.layerGroup().addTo(map),
+  pipes:       L.layerGroup().addTo(map),
+  connectors:  L.layerGroup().addTo(map),
+  sources:     L.layerGroup().addTo(map),
+  tanks:       L.layerGroup().addTo(map),
+  valves:      L.layerGroup().addTo(map),
+  bulk_meters: L.layerGroup().addTo(map),
+  sim_nodes:   L.layerGroup().addTo(map),
+  sim_pipes:   L.layerGroup().addTo(map),
+  hotspots:    L.layerGroup().addTo(map),
+};
+
+// ── helpers ────────────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const on = (id,ev,fn) => $(id)?.addEventListener(ev,fn);
+
+function showErr(id, msg){ const e=$(id); e.textContent=msg||""; e.style.display=msg?"block":"none"; }
+function setStatus(id, status, msg){
+  const el=$(id);
+  el.style.display="block";
+  el.className="status-bar "+status.toLowerCase();
+  el.textContent=`[${status}] ${msg||""}`;
+}
+function switchTab(name){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
+  document.querySelectorAll(".tab-pane").forEach(p=>p.classList.toggle("active",p.id==="tab-"+name));
+}
+
+async function api(path, opts={}){
+  const headers={"Content-Type":"application/json",...(opts.headers||{})};
+  if(S.apiKey) headers["X-API-Key"]=S.apiKey;
+  const r=await fetch(S.apiBase.replace(/\/$/,"")+path,{...opts,headers});
+  if(!r.ok){let d=r.statusText;try{const j=await r.json();d=j.detail||JSON.stringify(j);}catch(e){}throw new Error(`${r.status}: ${d}`);}
+  return r.json();
+}
+
+// ── tab switching ──────────────────────────────────────────────────────────
+document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>switchTab(t.dataset.tab)));
+
+// ── SETUP ──────────────────────────────────────────────────────────────────
+on("btn-connect","click",async()=>{
+  S.apiBase=$("api-base").value.trim(); S.apiKey=$("api-key").value.trim();
+  try{
+    await fetch(S.apiBase.replace(/\/$/,"")+"/health");
+    $("conn-status").textContent="connected to "+S.apiBase.split("//")[1];
+    const files=await api("/files");
+    const sel=$("file-select");
+    sel.innerHTML=files.map(f=>`<option value="${f.filename}">${f.filename}</option>`).join("");
+    S.file=files[0]?.filename;
+  }catch(e){
+    $("conn-status").textContent="connection failed";
+    showErr("err-setup",e.message);
+  }
+});
+$("file-select")?.addEventListener("change",e=>S.file=e.target.value);
+
+on("btn-load-layers","click",async()=>{
+  showErr("err-setup",null);
+  if(!S.file){showErr("err-setup","Connect and select a file first.");return;}
+  try{
+    const data=await api(`/dma/${encodeURIComponent(S.file)}/layers`);
+    renderDMALayers(data);
+    $("btn-run-sim").disabled=false;
+    switchTab("layers");
+  }catch(e){showErr("err-setup",e.message);}
+});
+
+function renderDMALayers(data){
+  // Clear all existing layers
+  Object.values(lgroups).forEach(g=>g.clearLayers());
+  S.connectorGJ=null;
+
+  // Boundary polygon
+  if(data.boundary?.features?.length){
+    L.geoJSON(data.boundary,{style:()=>({color:"#3fc7d6",weight:2,fillOpacity:.04,dashArray:"6 4"})}).addTo(lgroups.boundary);
+    try{map.fitBounds(L.geoJSON(data.boundary).getBounds(),{padding:[30,30]});}catch(e){}
+  }
+
+  // Pipes
+  if(data.pipes?.features?.length){
+    L.geoJSON(data.pipes,{
+      style:f=>({
+        color: f.properties.hw_c>=140?"#3fc7d6":f.properties.hw_c>=130?"#5aaddf":"#8ba0ad",
+        weight: Math.max(1.5, Math.min(4, f.properties.diam_mm/40)),
+        opacity:.7,
+      }),
+      onEachFeature:(f,l)=>{
+        l.bindTooltip(`
+          <div class="info-tooltip">
+            <b>Pipe ${f.properties.fid}</b><br>
+            &oslash;${f.properties.diam_mm}mm &bull; ${f.properties.material} &bull; C=${f.properties.hw_c}<br>
+            ${f.properties.length_m}m &bull; ${f.properties.purpose||""}
+          </div>`,{sticky:true});
+      }
+    }).addTo(lgroups.pipes);
+  }
+
+  // Sources (boreholes)
+  (data.sources?.features||[]).forEach(f=>{
+    const [lon,lat]=f.geometry.coordinates;
+    const p=f.properties;
+    L.circleMarker([lat,lon],{radius:9,color:"#071820",weight:2,fillColor:"#4adf6e",fillOpacity:1})
+      .bindTooltip(`<div class="info-tooltip"><b>${p.name}</b><br>Borehole &bull; ${p.elev_m}m ASL<br>Yield: ${p.yield_m3h||"?"}m³/h &bull; Head: ${p.total_head_m}m</div>`,{sticky:true})
+      .addTo(lgroups.sources);
+  });
+
+  // Tanks
+  (data.tanks?.features||[]).forEach(f=>{
+    const [lon,lat]=f.geometry.coordinates;
+    const p=f.properties;
+    L.circleMarker([lat,lon],{radius:9,color:"#071820",weight:2,fillColor:"#5aaddf",fillOpacity:1})
+      .bindTooltip(`<div class="info-tooltip"><b>${p.name}</b><br>Tank &bull; ${p.elev_m}m ASL<br>Cap: ${p.cap_m3||"?"}m³ &bull; D: ${p.diameter_m}m</div>`,{sticky:true})
+      .addTo(lgroups.tanks);
+  });
+
+  // Valves
+  (data.valves?.features||[]).forEach(f=>{
+    const [lon,lat]=f.geometry.coordinates;
+    const p=f.properties;
+    L.circleMarker([lat,lon],{radius:5,color:"#071820",weight:1.5,fillColor:p.is_isolation?"#e0c048":"#bfc0c8",fillOpacity:.9})
+      .bindTooltip(`<div class="info-tooltip">${p.valve_type}<br>&oslash;${p.diam_mm}mm</div>`,{sticky:true})
+      .addTo(lgroups.valves);
+  });
+
+  // Bulk meters
+  (data.bulk_meters?.features||[]).forEach(f=>{
+    const [lon,lat]=f.geometry.coordinates;
+    L.circleMarker([lat,lon],{radius:8,color:"#071820",weight:2,fillColor:"#d67bf0",fillOpacity:1})
+      .bindTooltip(`<div class="info-tooltip"><b>Bulk Meter</b><br>${f.properties.name}</div>`,{sticky:true})
+      .addTo(lgroups.bulk_meters);
+  });
+
+  // Stats panel
+  const st=data.stats;
+  $("setup-stats").style.display="block";
+  $("setup-statgrid").innerHTML=`
+    <div class="stat"><div class="v">${st.pipe_count}</div><div class="l">Pipes</div></div>
+    <div class="stat"><div class="v">${st.source_count}</div><div class="l">Sources</div></div>
+    <div class="stat"><div class="v">${st.tank_count}</div><div class="l">Tanks</div></div>
+    <div class="stat"><div class="v">${st.valve_count}</div><div class="l">Valves</div></div>
+    <div class="stat"><div class="v">${st.bulk_meter_count}</div><div class="l">Bulk meters</div></div>
+    <div class="stat"><div class="v">${(st.total_pipe_length_m/1000).toFixed(2)}</div><div class="l">Total km</div></div>`;
+
+  buildLayerControls(data);
+  $("map-legend").style.display="block";
+  buildToolbar();
+}
+
+function buildLayerControls(data){
+  const st=data.stats;
+  const defs=[
+    {id:"boundary",  label:"DMA boundary",    count:"1 polygon", color:"var(--cyan)"},
+    {id:"pipes",     label:"Distribution pipes",count:`${st.pipe_count}`, color:"var(--cyan)"},
+    {id:"sources",   label:"Water sources",    count:`${st.source_count}`, color:"#4adf6e"},
+    {id:"tanks",     label:"Storage tanks",    count:`${st.tank_count}`, color:"var(--blue)"},
+    {id:"valves",    label:"Valves",           count:`${st.valve_count}`, color:"#e0c048"},
+    {id:"bulk_meters",label:"Bulk meters",     count:`${st.bulk_meter_count}`, color:"#d67bf0"},
+    {id:"connectors",label:"Synthetic connectors",count:"0", color:"var(--purple)"},
+    {id:"sim_nodes", label:"Pressure results", count:"run sim", color:"var(--amber)"},
+    {id:"hotspots",  label:"Leakage hotspots", count:"run sim", color:"var(--red)"},
+  ];
+  $("layer-controls").innerHTML=defs.map(d=>`
+    <div class="layer-row">
+      <div class="layer-swatch" style="background:${d.color}"></div>
+      <div class="lname">${d.label}</div>
+      <div class="lcount" id="lc-${d.id}">${d.count}</div>
+      <div class="toggle on" id="tog-${d.id}" data-layer="${d.id}"></div>
+    </div>`).join("");
+
+  document.querySelectorAll(".toggle").forEach(tog=>{
+    tog.addEventListener("click",()=>{
+      const lid=tog.dataset.layer;
+      const on=tog.classList.toggle("on");
+      if(on) map.addLayer(lgroups[lid]);
+      else   map.removeLayer(lgroups[lid]);
+    });
+  });
+}
+
+function buildToolbar(){
+  $("map-toolbar").innerHTML=`
+    <div class="map-btn" id="mb-fit">FIT MAP</div>
+    <div class="map-btn" id="mb-pipes">PIPES</div>
+    <div class="map-btn" id="mb-pressure">PRESSURE</div>
+    <div class="map-btn" id="mb-risk">RISK HOTSPOTS</div>`;
+  on("mb-fit","click",()=>{
+    try{map.fitBounds(lgroups.pipes.getLayers()[0]?.getBounds() || lgroups.boundary.getLayers()[0]?.getBounds(),{padding:[20,20]});}catch(e){}
+  });
+  on("mb-pipes","click",()=>{switchLayers("pipes");});
+  on("mb-pressure","click",()=>{switchLayers("sim_nodes");});
+  on("mb-risk","click",()=>{switchLayers("hotspots");});
+}
+
+function switchLayers(active){
+  ["pipes","sim_nodes","hotspots"].forEach(lid=>{
+    const show=lid===active||lid==="boundary";
+    if(show) map.addLayer(lgroups[lid]);
+    else     map.removeLayer(lgroups[lid]);
+    const tog=$(`tog-${lid}`);
+    if(tog) tog.classList.toggle("on",show);
+  });
+}
+
+// ── SIMULATE ───────────────────────────────────────────────────────────────
+on("btn-run-sim","click",async()=>{
+  showErr("err-sim",null);
+  $("sim-summary").style.display="none";
+  if(!S.file){showErr("err-sim","Load a DMA file first.");return;}
+  try{
+    const body={
+      name:$("sim-name").value||"DMA run",
+      duration_hrs:parseInt($("sim-duration").value)||24,
+      time_step_min:parseInt($("sim-timestep").value)||60,
+      base_demand_m3h:parseFloat($("sim-demand").value)||0.011,
+      leakage_frac:parseFloat($("sim-leakage").value)||0.20,
+    };
+    const resp=await api(`/dma/${encodeURIComponent(S.file)}/simulate`,{method:"POST",body:JSON.stringify(body)});
+    S.scenarioId=resp.id;
+    setStatus("sim-status","PENDING","queued…");
+
+    // Show topology repair info
+    const rep=resp.topology_repair;
+    if(rep && rep.connectors_added>0){
+      renderConnectors(rep.connectors_geojson, rep.connectors_added, rep.total_connector_length_m);
+    }
+
+    if(S.pollTimer) clearInterval(S.pollTimer);
+    S.pollTimer=setInterval(pollScenario,2500);
+    pollScenario();
+  }catch(e){showErr("err-sim",e.message);}
+});
+
+async function pollScenario(){
+  if(!S.scenarioId) return;
+  try{
+    const d=await api(`/simulate/${S.scenarioId}`);
+    if(d.status==="PENDING"||d.status==="RUNNING"){
+      setStatus("sim-status",d.status,"simulating…");
+    } else if(d.status==="DONE"){
+      clearInterval(S.pollTimer);
+      setStatus("sim-status","DONE","complete");
+      renderSimSummary(d.summary);
+      await renderSimResults(0);
+      switchTab("simulate");
+    } else {
+      clearInterval(S.pollTimer);
+      setStatus("sim-status","FAILED",d.error_message||"unknown error");
+    }
+  }catch(e){clearInterval(S.pollTimer);showErr("err-sim",e.message);}
+}
+
+function renderSimSummary(s){
+  $("sim-summary").style.display="block";
+  const col=v=>v>45?"red":v<7?"green":"";
+  $("sim-statgrid").innerHTML=`
+    <div class="stat"><div class="v ${col(s.pressure_avg_m)}">${s.pressure_avg_m}</div><div class="l">Avg Pressure m</div></div>
+    <div class="stat"><div class="v">${s.pressure_min_m}</div><div class="l">Min Pressure m</div></div>
+    <div class="stat"><div class="v">${s.pressure_max_m}</div><div class="l">Max Pressure m</div></div>
+    <div class="stat"><div class="v ${s.low_pressure_nodes>0?"red":""}">${s.low_pressure_nodes}</div><div class="l">Low-pres nodes</div></div>
+    <div class="stat"><div class="v">${s.total_pipes}</div><div class="l">Pipes simulated</div></div>
+    <div class="stat"><div class="v">${s.time_steps}</div><div class="l">Time steps</div></div>`;
+}
+
+async function renderSimResults(step){
+  lgroups.sim_nodes.clearLayers(); lgroups.sim_pipes.clearLayers();
+  try{
+    const [nodes,pipes]=await Promise.all([
+      api(`/simulate/${S.scenarioId}/geojson/nodes?time_step=${step}`),
+      api(`/simulate/${S.scenarioId}/geojson/pipes?time_step=${step}`),
+    ]);
+    L.geoJSON(pipes,{style:()=>({color:"#3a5568",weight:1.5,opacity:.6})}).addTo(lgroups.sim_pipes);
+    nodes.features.forEach(f=>{
+      if(!f.geometry) return;
+      const [lon,lat]=f.geometry.coordinates;
+      const p=f.properties;
+      const col=p.is_low_pressure?"#4dbf82":p.pressure>45?"#e05248":p.pressure>30?"#e09c35":"#5aaddf";
+      L.circleMarker([lat,lon],{radius:p.is_low_pressure?6:4,color:"#080e12",weight:1,fillColor:col,fillOpacity:.9})
+        .bindTooltip(`<div class="info-tooltip"><b>${p.element_id}</b><br>Pressure: ${p.pressure||"?"}m${p.is_low_pressure?" ⚠ LOW":""}</div>`,{sticky:true})
+        .addTo(lgroups.sim_nodes);
+    });
+    map.addLayer(lgroups.sim_nodes);
+    map.addLayer(lgroups.sim_pipes);
+  }catch(e){}
+}
+
+function renderConnectors(gj, count, totalLen){
+  lgroups.connectors.clearLayers();
+  if(!gj?.features?.length) return;
+  L.geoJSON(gj,{
+    style:()=>({color:"#8b7ff5",weight:2.5,dashArray:"6 4",opacity:.85}),
+    onEachFeature:(f,l)=>{
+      const p=f.properties;
+      l.bindTooltip(`<div class="info-tooltip"><b>${p.id}</b><br>${p.length_m}m &bull; ${p.material}<br><span style="color:var(--faint)">${p.reason.slice(0,80)}</span></div>`,{sticky:true});
+    }
+  }).addTo(lgroups.connectors);
+  $("lc-connectors").textContent=`${count}`;
+  const alert=$("connector-alert");
+  alert.style.display="block";
+  alert.innerHTML=`<b>${count} synthetic connector pipe${count>1?"s":""} added</b> (${totalLen}m total) to make the DMA network fully connected. Verify these in the field before using simulation results for investment decisions.`;
+}
+
+// ── LEAKAGE ────────────────────────────────────────────────────────────────
+on("btn-load-leakage","click",async()=>{
+  switchTab("leakage");
+  if(!S.scenarioId) return;
+  try{
+    const d=await api(`/dma/${encodeURIComponent(S.file)}/simulate/${S.scenarioId}/leakage`);
+    S.leakageData=d;
+    renderLeakage(d);
+  }catch(e){
+    $("leakage-placeholder").textContent="Failed to load: "+e.message;
+  }
+});
+
+function renderLeakage(d){
+  $("leakage-placeholder").style.display="none";
+  $("leakage-content").style.display="block";
+
+  // NRW grid
+  const nrw=d.nrw;
+  const ilicol=nrw.ili>8?"red":nrw.ili>4?"amber":"green";
+  $("nrw-grid").innerHTML=`
+    <div class="stat"><div class="v ${nrw.nrw_pct>30?"red":nrw.nrw_pct>20?"amber":"green"}">${nrw.nrw_pct}%</div><div class="l">NRW</div></div>
+    <div class="stat"><div class="v">${nrw.nrw_m3h}</div><div class="l">NRW m³/h</div></div>
+    <div class="stat"><div class="v">${nrw.real_loss_m3h}</div><div class="l">Real loss m³/h</div></div>
+    <div class="stat"><div class="v">${nrw.system_input_m3h}</div><div class="l">System input m³/h</div></div>
+    <div class="stat"><div class="v">${nrw.authorised_m3h}</div><div class="l">Authorised m³/h</div></div>
+    <div class="stat"><div class="v ${ilicol}">${nrw.ili}</div><div class="l">ILI index</div></div>`;
+
+  // Pressure zones
+  $("pressure-zones").innerHTML=d.pressure_zones.map(z=>`
+    <div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+      <div style="width:9px;height:9px;border-radius:50%;background:${z.zone==="low"?"var(--green)":z.zone==="high"?"var(--red)":"var(--blue)"};flex:none"></div>
+      <div style="font-size:11px;flex:1;color:var(--text)">${z.zone.toUpperCase()} pressure</div>
+      <div style="font-family:var(--mono);font-size:10.5px;color:var(--cyan)">${z.count} nodes (${z.pct}%)</div>
+    </div>
+    <div style="background:var(--border);height:3px;border-radius:2px;margin-bottom:6px">
+      <div style="height:3px;border-radius:2px;width:${z.pct}%;background:${z.zone==="low"?"var(--green)":z.zone==="high"?"var(--red)":"var(--blue)"}"></div>
+    </div>`).join("");
+
+  // Balance chart
+  drawBalanceChart(d.timestep_balance);
+
+  // Risk list
+  const risks=d.pipe_risks_top20||[];
+  $("risk-list").innerHTML=risks.map(r=>`
+    <div class="risk-item" data-lat="${r.lat}" data-lon="${r.lon}">
+      <div class="ri-header">
+        <span class="risk-badge ${r.risk_level}">${r.risk_level}</span>
+        <span class="ri-id">${r.pipe_id}</span>
+        <span style="flex:1"></span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--amber)">${(r.risk_score*100).toFixed(0)}%</span>
+      </div>
+      <div class="ri-drivers">${r.drivers.join(" · ")}</div>
+      <div class="risk-bar-bg"><div class="risk-bar" style="width:${r.risk_score*100}%;background:${r.risk_level==="critical"?"var(--red)":r.risk_level==="high"?"var(--amber)":"var(--purple)"}"></div></div>
+    </div>`).join("");
+
+  document.querySelectorAll(".risk-item").forEach(el=>{
+    el.addEventListener("click",()=>{
+      const lat=parseFloat(el.dataset.lat), lon=parseFloat(el.dataset.lon);
+      if(lat&&lon) map.flyTo([lat,lon],17,{duration:1});
+    });
+  });
+
+  // Warnings
+  $("leakage-warnings").innerHTML=(d.warnings||[]).map(w=>
+    `<div style="color:var(--amber);font-size:10.5px;font-family:var(--mono);margin-top:6px;padding:6px 8px;border:1px solid var(--amber2);border-radius:2px">⚠ ${w}</div>`
+  ).join("");
+
+  // Hotspots on map
+  renderHotspots(d.hotspots_geojson);
+}
+
+function drawBalanceChart(balance){
+  const canvas=$("balance-chart");
+  if(!canvas||!balance?.length) return;
+  const ctx=canvas.getContext("2d");
+  canvas.width=canvas.offsetWidth||360; canvas.height=140;
+  const W=canvas.width, H=canvas.height;
+  const pad={t:10,r:8,b:24,l:38};
+  ctx.fillStyle="#080e12"; ctx.fillRect(0,0,W,H);
+
+  const maxVal=Math.max(...balance.map(b=>b.inflow_m3h),1);
+  const sx=(i)=>pad.l+(i/(balance.length-1||1))*(W-pad.l-pad.r);
+  const sy=(v)=>pad.t+(1-v/maxVal)*(H-pad.t-pad.b);
+
+  // Grid
+  ctx.strokeStyle="#1e2e36"; ctx.lineWidth=1;
+  [0.25,0.5,0.75,1].forEach(f=>{
+    const y=sy(f*maxVal);
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke();
+    ctx.fillStyle="#3d5560"; ctx.font="9px monospace";
+    ctx.fillText((f*maxVal).toFixed(1),2,y+3);
+  });
+
+  // Inflow line
+  ctx.beginPath(); ctx.strokeStyle="#3fc7d6"; ctx.lineWidth=2;
+  balance.forEach((b,i)=>{ const x=sx(i),y=sy(b.inflow_m3h); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.stroke();
+
+  // Demand line
+  ctx.beginPath(); ctx.strokeStyle="#4dbf82"; ctx.lineWidth=1.5; ctx.setLineDash([3,3]);
+  balance.forEach((b,i)=>{ const x=sx(i),y=sy(b.demand_m3h); i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+  ctx.stroke(); ctx.setLineDash([]);
+
+  // NRW fill
+  ctx.beginPath(); ctx.fillStyle="rgba(224,82,72,.18)";
+  balance.forEach((b,i)=>{ const x=sx(i); i===0?ctx.moveTo(x,sy(b.inflow_m3h)):ctx.lineTo(x,sy(b.inflow_m3h)); });
+  for(let i=balance.length-1;i>=0;i--){const b=balance[i];ctx.lineTo(sx(i),sy(b.demand_m3h));}
+  ctx.closePath(); ctx.fill();
+
+  // X labels
+  ctx.fillStyle="#3d5560"; ctx.font="9px monospace";
+  balance.filter((_,i)=>i%4===0).forEach(b=>{ ctx.fillText(b.hour+"h",sx(b.hour)-6,H-6); });
+
+  // Legend
+  ctx.fillStyle="#3fc7d6"; ctx.fillRect(W-70,H-20,14,2);
+  ctx.fillStyle="#7591a0"; ctx.font="9px monospace"; ctx.fillText("Inflow",W-52,H-17);
+  ctx.fillStyle="#4dbf82"; ctx.fillRect(W-70,H-10,14,2);
+  ctx.fillStyle="#7591a0"; ctx.fillText("Demand",W-52,H-7);
+}
+
+function renderHotspots(gj){
+  lgroups.hotspots.clearLayers();
+  if(!gj?.features?.length) return;
+  gj.features.forEach(f=>{
+    const [lon,lat]=f.geometry.coordinates;
+    const p=f.properties;
+    const col=p.risk_level==="critical"?"#e05248":p.risk_level==="high"?"#e09c35":"#8b7ff5";
+    const r=p.risk_level==="critical"?8:p.risk_level==="high"?6:4;
+    L.circleMarker([lat,lon],{radius:r,color:"#080e12",weight:1.5,fillColor:col,fillOpacity:.9})
+      .bindTooltip(`<div class="info-tooltip"><b>${p.pipe_id}</b> <span style="color:${col}">${p.risk_level.toUpperCase()}</span><br>Score: ${(p.risk_score*100).toFixed(0)}%<br>${p.drivers}</div>`,{sticky:true})
+      .addTo(lgroups.hotspots);
+  });
+  $("lc-hotspots").textContent=gj.features.length;
+}
+
+})();
+</script>
 </body>
 </html>

@@ -27,7 +27,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from app.core.auth import require_api_key
-from app.core.database import get_session
+from app.core.database import get_db
 from app.core.exceptions import GpkgNotFoundError, InvalidGpkgError
 from app.models.simulation import SimResult, SimScenario
 from app.services.dma_builder import build_dma_inp, estimate_nrw
@@ -153,7 +153,8 @@ class DMASimRequest(BaseModel):
     duration_hrs:    int   = Field(24, ge=1, le=168)
     time_step_min:   int   = Field(60, ge=5,  le=360)
     base_demand_m3h: float = Field(0.011, gt=0, description="Demand per junction (m³/h)")
-    leakage_frac:    float = Field(0.20,  ge=0, le=1.0, description="Extra demand fraction modelling background leakage (0.20 = +20%)")
+    leakage_frac:    float = Field(0.20,  ge=0, le=1.0,
+                                   description="Extra demand fraction modelling background leakage (0.20 = +20%)")
 
 
 @router.post("/{filename}/simulate", status_code=202)
@@ -161,7 +162,7 @@ async def simulate_dma(
     filename:   str,
     body:       DMASimRequest,
     background: BackgroundTasks,
-    db:         AsyncSession = Depends(get_session),
+    db:         AsyncSession = Depends(get_db),
     _:          str          = Depends(require_api_key),
 ):
     """
@@ -275,7 +276,7 @@ async def simulate_dma(
 async def get_nrw(
     filename:    str,
     scenario_id: int,
-    db:          AsyncSession = Depends(get_session),
+    db:          AsyncSession = Depends(get_db),
     _:           str          = Depends(require_api_key),
 ):
     """
@@ -295,17 +296,24 @@ async def get_nrw(
         raise HTTPException(status_code=422, detail="This scenario is not a DMA simulation.")
 
     summary = scenario.summary or {}
-    total_demand = scenario.extra_demands.get("_total_demand_m3h", 0.011)
+    extra   = scenario.extra_demands or {}
 
-    # Use the simulation's summary flow data if available
-    inlet_flow   = summary.get("inlet_flow_m3h",  0.0)
-    outlet_flow  = summary.get("outlet_flow_m3h", 0.0)
-    sim_demand   = summary.get("total_demand_m3h", total_demand)
-
-    if inlet_flow == 0.0:
-        # Derive system input from total node demand (no real meter reading yet)
-        inlet_flow  = sim_demand * 1.0  # actual supply equals demand in steady state
-        outlet_flow = 0.0
+    # Prefer the EPANET .rpt flow balance (most accurate)
+    rpt_fb = summary.get("epanet_flow_balance")
+    if rpt_fb and rpt_fb.get("source") == "epanet_rpt":
+        nrw_source = "epanet_rpt"
+        inlet_flow   = rpt_fb.get("total_inflow_m3h",    0.0)
+        outlet_flow  = 0.0   # EPANET inflow is already net
+        sim_demand   = rpt_fb.get("consumer_demand_m3h", 0.0)
+    else:
+        nrw_source   = "estimated"
+        total_demand = extra.get("_total_demand_m3h", 0.011)
+        inlet_flow   = summary.get("inlet_flow_m3h",  0.0)
+        outlet_flow  = summary.get("outlet_flow_m3h", 0.0)
+        sim_demand   = summary.get("total_demand_m3h", total_demand)
+        if inlet_flow == 0.0:
+            inlet_flow  = sim_demand
+            outlet_flow = 0.0
 
     nrw = estimate_nrw(
         inlet_flow_m3h   = inlet_flow,
@@ -315,15 +323,11 @@ async def get_nrw(
 
     return {
         "scenario_id":        scenario_id,
-        "dma_name":           scenario.extra_demands.get("_dma_name"),
+        "dma_name":           extra.get("_dma_name"),
+        "nrw_source":         nrw_source,
         "simulation_summary": summary,
         "nrw":                nrw,
-        "note": (
-            "inlet_flow_m3h derived from simulation demand because real bulk-meter "
-            "readings are not yet connected.  Connect live meter data to improve accuracy."
-            if inlet_flow == sim_demand else
-            "inlet_flow_m3h from bulk-meter simulation nodes."
-        ),
+        "epanet_flow_balance": rpt_fb,
     }
 
 
@@ -333,7 +337,7 @@ async def get_nrw(
 async def get_leakage_report(
     filename:    str,
     scenario_id: int,
-    db:          AsyncSession = Depends(get_session),
+    db:          AsyncSession = Depends(get_db),
     _:           str          = Depends(require_api_key),
 ):
     """
@@ -363,29 +367,28 @@ async def get_leakage_report(
 
     node_results, pipe_results = [], []
     for sr in sim_results:
-        d = sr.data or {}
-        if sr.result_type == "node":
+        if sr.element_type == "node":
             node_results.append(NodeResult(
-                element_id    = sr.element_id,
-                time_step     = sr.time_step,
-                lat           = d.get("lat"),
-                lon           = d.get("lon"),
-                pressure      = d.get("pressure"),
-                head          = d.get("head"),
-                demand        = d.get("demand"),
-                water_age     = d.get("water_age"),
-                is_low_pressure = d.get("is_low_pressure", False),
+                element_id      = sr.element_id,
+                time_step       = sr.time_step,
+                lat             = sr.lat,
+                lon             = sr.lon,
+                pressure        = sr.pressure,
+                head            = sr.head,
+                demand          = sr.demand,
+                water_age       = sr.water_age,
+                is_low_pressure = sr.is_low_pressure,
             ))
-        elif sr.result_type == "pipe":
+        elif sr.element_type == "pipe":
             pipe_results.append(PipeResult(
-                element_id    = sr.element_id,
-                time_step     = sr.time_step,
-                lat           = d.get("lat"),
-                lon           = d.get("lon"),
-                flow_rate     = d.get("flow_rate"),
-                velocity      = d.get("velocity"),
-                headloss      = d.get("headloss"),
-                is_high_velocity = d.get("is_high_velocity", False),
+                element_id       = sr.element_id,
+                time_step        = sr.time_step,
+                lat              = sr.lat,
+                lon              = sr.lon,
+                flow_rate        = sr.flow_rate,
+                velocity         = sr.velocity,
+                headloss         = sr.headloss,
+                is_high_velocity = sr.is_high_velocity,
             ))
 
     sim_output = SimulationOutput(

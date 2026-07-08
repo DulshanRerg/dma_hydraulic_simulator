@@ -18,13 +18,13 @@ Pipeline
 import logging
 import math
 import os
+import shutil
 import tempfile
 from datetime import datetime
 
+from app.core.config import get_settings
 from app.core.database import get_session
 from app.models.simulation import SimResult, SimScenario
-from app.services.network_builder import build_inp_from_gpkg
-from app.services.network_subset import build_inp_from_subset
 from app.services.rpt_parser import parse_rpt, rpt_nrw_summary
 from app.services.simulation_service import run_simulation
 
@@ -165,10 +165,51 @@ async def run_simulation_task(scenario_id: int) -> None:
             )
         logger.info("[%d] .inp → %s", scenario_id, inp_path)
 
+        logger.info(
+            "[%d] leakage_frac=%s",
+            scenario_id,
+            scenario.leakage_frac,
+        )
+
         # step 2: resolve leak events
         leak_events = _build_leak_events(
             scenario.extra_demands or [], inp_path, duration_sec
         )
+
+        # DMA synthetic leaks
+        if not leak_events and scenario.leakage_frac > 0:
+            coords = _parse_inp_coordinates(inp_path)
+
+            all_nodes = list(coords.keys())
+
+            leak_count = max(
+                1,
+                int(len(all_nodes) * scenario.leakage_frac)
+            )
+
+            import random
+
+            selected_nodes = random.sample(
+                all_nodes,
+                min(leak_count, len(all_nodes))
+            )
+
+            leak_events = [
+                {
+                    "node_id": node_id,
+                    "diameter": 0.01,
+                    "start_time": 0,
+                    "end_time": duration_sec,
+                }
+                for node_id in selected_nodes
+            ]
+
+            logger.info(
+                "[%d] Generated %d DMA leak events (fraction=%.2f)",
+                scenario_id,
+                len(leak_events),
+                scenario.leakage_frac,
+            )
 
         # step 3: EPyT-Flow
         output = run_simulation(
@@ -211,6 +252,21 @@ async def run_simulation_task(scenario_id: int) -> None:
                 is_high_velocity = p.is_high_velocity,
             ))
 
+        # tank results — stored as "tank" element_type (no schema change needed)
+        for t in output.tank_results:
+            records.append(SimResult(
+                scenario_id  = scenario_id,
+                time_step    = t.time_step,
+                element_type = "tank",
+                element_id   = t.element_id,
+                lat          = t.lat,
+                lon          = t.lon,
+                # reuse flow_rate column for volume_m3 (same float, labelled by element_type)
+                flow_rate    = t.volume_m3,
+            ))
+
+        total = len(records)
+
         async with get_session() as session:
             for i in range(0, len(records), BATCH_SIZE):
                 session.add_all(records[i : i + BATCH_SIZE])
@@ -231,6 +287,25 @@ async def run_simulation_task(scenario_id: int) -> None:
                     merged_summary["total_demand_m3h"]  = rpt.flow_balance.consumer_demand_m3h
                 if not rpt.balanced:
                     merged_summary.setdefault("warnings", []).extend(rpt.warnings)
+
+            # Persist the raw .rpt file itself (not just the parsed summary)
+            # so the user can view/download the full EPANET report after the
+            # temp .inp/.rpt working directory is cleaned up below.
+            rpt_src = inp_path + ".rpt"
+            report_available = False
+            if os.path.isfile(rpt_src):
+                settings = get_settings()
+                try:
+                    os.makedirs(settings.reports_dir, exist_ok=True)
+                    from app.services.rpt_parser import persisted_report_path
+                    shutil.copy2(rpt_src, persisted_report_path(scenario_id))
+                    report_available = True
+                except OSError as copy_exc:
+                    logger.warning(
+                        "[%d] Could not persist .rpt file: %s", scenario_id, copy_exc
+                    )
+            merged_summary["report_available"] = report_available
+
             scenario.summary = merged_summary
             await session.commit()
 

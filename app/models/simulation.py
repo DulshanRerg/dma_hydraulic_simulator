@@ -44,6 +44,12 @@ class SimScenario(Base):
     reservoir_lat:    Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     reservoir_lon:    Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     snap_tolerance_m: Mapped[float]           = mapped_column(Float, default=2.0)
+    # DMA simulation parameters
+    leakage_frac: Mapped[float] = mapped_column(
+        Float,
+        default=0.20,
+        nullable=False
+    )
 
     # lifecycle
     status:          Mapped[str]            = mapped_column(String(20), default="PENDING")

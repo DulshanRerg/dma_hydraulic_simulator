@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     # paths
     gpkg_dir:     str = "./data/gpkg"
     database_url: str = "sqlite+aiosqlite:///./data/db/epanet_service.db"
+    # EPANET .rpt report files are copied here after each simulation so they
+    # survive the temp-dir cleanup and can be viewed/downloaded later.
+    reports_dir:  str = "./data/reports"
 
     # simulation defaults
     default_duration_hrs: int   = 24

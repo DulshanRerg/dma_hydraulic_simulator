@@ -112,29 +112,39 @@ open http://localhost:8080/docs
 ## Project structure
 
 ```
-epanet_service/
+epanet_service_epytflow/
 ├── app/
-│   ├── main.py                      FastAPI app entry point
 │   ├── core/
-│   │   ├── config.py                Settings from .env
-│   │   ├── auth.py                  X-API-Key dependency
-│   │   ├── database.py              Async SQLAlchemy + SQLite
-│   │   └── exceptions.py            HTTP error helpers
+│   │   ├── auth.py                  API-key authentication
+│   │   ├── config.py                Settings (pydantic-settings)
+│   │   ├── database.py              Async SQLite engine + auto-migration
+│   │   └── exceptions.py            HTTP exception helpers
 │   ├── models/simulation.py         ORM: sim_scenarios + sim_results
 │   ├── routers/
+│   │   ├── dma.py                   DMA endpoints (layers/simulate/leakage/nrw)
 │   │   ├── files.py                 GET /files
-│   │   ├── network.py               GET /network/{file}/pipes, POST /network/{file}/select
-│   │   └── simulation.py            All /simulate endpoints
+│   │   └── simulation.py            Scenario simulation endpoints
 │   ├── services/
-│   │   ├── network_builder.py       .gpkg → EPANET .inp, whole network (pure stdlib)
-│   │   ├── network_subset.py        spatial selection, endpoint-snapping, connected
-│   │   │                            components, .gpkg → EPANET .inp for a sub-network
-│   │   └── simulation_service.py    EPyT-Flow ScenarioSimulator runner
-│   └── workers/simulation_worker.py Background task orchestrator
-├── frontend/network_explorer.html   Leaflet UI for the select → extract → simulate workflow
+│   │   ├── dma_builder.py           DMA EPANET .inp builder (multi-source/tank)
+│   │   ├── dma_ingest.py            Multi-layer GPKG → typed DMA asset dataclasses
+│   │   ├── leakage_report.py        Hydraulic leakage analysis (NRW/ILI/risk)
+│   │   ├── rpt_parser.py            EPANET .rpt flow balance parser
+│   │   ├── simulation_service.py    EPyT-Flow v0.17.x runner (fixed API names)
+│   │   └── topology_repair.py       Shapely snap + T-split + MST connector insertion
+│   ├── workers/simulation_worker.py  Background task: .inp → EPyT-Flow → DB
+│   └── main.py
+├── data/
+│   ├── db/.gitkeep
+│   └── gpkg/
+│       ├── DUWASA.gpkg              Consolidated DMA dataset (pipes+sources+tanks+valves+DMA)
+├── frontend/
+│   ├── dma_explorer.html            DMA Water Leakage Explorer
 ├── tests/
-│   ├── test_api.py                  pytest integration tests
-│   └── test_network.py              tests for /network/* and pipe_ids-based /simulate
+│   ├── conftest.py                  Shared DB-init fixture
+│   ├── test_api.py                  Original API integration tests
+│   ├── test_dma.py                  DMA endpoint + topology repair tests
+│   └── test_network.py              Network selection + subset simulation tests
+├── pytest.ini
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -151,12 +161,6 @@ All endpoints require `X-API-Key` header.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/files` | List `.gpkg` files in the shared volume |
-
-### Network exploration & selection
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/network/{filename}/pipes` | Full (or status-filtered) pipe network as GeoJSON — load straight into Leaflet |
-| POST | `/network/{filename}/select` | Resolve a clicked-pipe / point+radius / drawn-polygon selection into connected sub-networks |
 
 ### Simulations
 | Method | Endpoint | Description |

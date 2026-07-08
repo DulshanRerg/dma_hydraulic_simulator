@@ -21,10 +21,12 @@ DELETE /simulate/{id}               Delete scenario
 """
 
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi.responses import FileResponse, PlainTextResponse, Response
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +35,12 @@ from app.core.auth import require_api_key
 from app.core.database import get_db
 from app.core.exceptions import SimulationNotFoundError, SimulationStillRunningError
 from app.models.simulation import SimResult, SimScenario
+from app.services.report_plots import plot_node_pressure, plot_pipe_flow
+from app.services.rpt_parser import (
+    parse_rpt_file,
+    persisted_report_path,
+    rpt_nrw_summary,
+)
 from app.workers.simulation_worker import run_simulation_task
 
 logger = logging.getLogger(__name__)
@@ -395,6 +403,152 @@ async def get_pipes_geojson(
         q = q.where(SimResult.time_step == time_step)
     rows = (await db.execute(q)).scalars().all()
     return {"type": "FeatureCollection", "features": [_to_geojson_feature(r) for r in rows]}
+
+
+@router.get("/{scenario_id}/report", response_class=PlainTextResponse)
+async def get_report_text(
+    scenario_id: int,
+    db:          AsyncSession = Depends(get_db),
+    _:           str          = Depends(require_api_key),
+):
+    """
+    Return the raw EPANET .rpt file contents for this scenario, so it can be
+    viewed directly (e.g. in a <pre> block in the frontend).
+    """
+    s = await _get_or_404(scenario_id, db)
+    if s.status != "DONE":
+        raise SimulationStillRunningError(scenario_id)
+    path = persisted_report_path(scenario_id)
+    if not os.path.isfile(path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No .rpt report was persisted for scenario {scenario_id}.",
+        )
+    with open(path, encoding="utf-8", errors="replace") as f:
+        return f.read()
+
+
+@router.get("/{scenario_id}/report/download")
+async def download_report(
+    scenario_id: int,
+    db:          AsyncSession = Depends(get_db),
+    _:           str          = Depends(require_api_key),
+):
+    """Download the raw .rpt file as an attachment."""
+    s = await _get_or_404(scenario_id, db)
+    if s.status != "DONE":
+        raise SimulationStillRunningError(scenario_id)
+    path = persisted_report_path(scenario_id)
+    if not os.path.isfile(path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No .rpt report was persisted for scenario {scenario_id}.",
+        )
+    return FileResponse(
+        path,
+        media_type="text/plain",
+        filename=f"scenario_{scenario_id}.rpt",
+    )
+
+
+@router.get("/{scenario_id}/report/summary")
+async def get_report_summary(
+    scenario_id: int,
+    db:          AsyncSession = Depends(get_db),
+    _:           str          = Depends(require_api_key),
+):
+    """
+    Structured summary parsed from the persisted .rpt file: EPANET's own
+    hydraulic flow balance / NRW figure, convergence status, and any
+    warning or status-change lines EPANET logged during the run.
+    """
+    s = await _get_or_404(scenario_id, db)
+    if s.status != "DONE":
+        raise SimulationStillRunningError(scenario_id)
+    path = persisted_report_path(scenario_id)
+    rpt = parse_rpt_file(path)
+    if not rpt:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No .rpt report was persisted for scenario {scenario_id}.",
+        )
+    return {
+        "scenario_id":    scenario_id,
+        "flow_balance":   rpt_nrw_summary(rpt),
+        "balanced":       rpt.balanced,
+        "status_events":  [{"time": e.time_hms, "message": e.message} for e in rpt.status_events],
+        "warnings":       rpt.warnings,
+    }
+
+
+@router.get("/{scenario_id}/plots/pressure")
+async def get_pressure_plot(
+    scenario_id: int,
+    nodes:       Optional[str] = Query(
+        None,
+        description="Comma-separated node element_ids to plot, e.g. '13,16,22,30'. Omit to plot all nodes.",
+    ),
+    db:          AsyncSession  = Depends(get_db),
+    _:           str           = Depends(require_api_key),
+):
+    """
+    Render a pressure-vs-time-step chart (PNG) for the given nodes across
+    every recorded time step — one line per node, matching the reference
+    "Pressure in meter" chart.
+    """
+    s = await _get_or_404(scenario_id, db)
+    if s.status != "DONE":
+        raise SimulationStillRunningError(scenario_id)
+
+    node_ids = [n.strip() for n in nodes.split(",")] if nodes else None
+    q = select(SimResult).where(
+        SimResult.scenario_id  == scenario_id,
+        SimResult.element_type == "node",
+    )
+    if node_ids:
+        q = q.where(SimResult.element_id.in_(node_ids))
+    rows = (await db.execute(q)).scalars().all()
+
+    try:
+        png = plot_node_pressure(rows, node_ids=node_ids, time_step_min=s.time_step_min)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return Response(content=png, media_type="image/png")
+
+
+@router.get("/{scenario_id}/plots/flow")
+async def get_flow_plot(
+    scenario_id: int,
+    links:       Optional[str] = Query(
+        None,
+        description="Comma-separated pipe/link element_ids to plot, e.g. '1,2'. Omit to plot all links.",
+    ),
+    db:          AsyncSession  = Depends(get_db),
+    _:           str           = Depends(require_api_key),
+):
+    """
+    Render a flow-rate-vs-time-step chart (PNG) for the given links across
+    every recorded time step — one line per link, matching the reference
+    "Flow rate in cubicmeter/hr" chart.
+    """
+    s = await _get_or_404(scenario_id, db)
+    if s.status != "DONE":
+        raise SimulationStillRunningError(scenario_id)
+
+    link_ids = [n.strip() for n in links.split(",")] if links else None
+    q = select(SimResult).where(
+        SimResult.scenario_id  == scenario_id,
+        SimResult.element_type == "pipe",
+    )
+    if link_ids:
+        q = q.where(SimResult.element_id.in_(link_ids))
+    rows = (await db.execute(q)).scalars().all()
+
+    try:
+        png = plot_pipe_flow(rows, link_ids=link_ids, time_step_min=s.time_step_min)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return Response(content=png, media_type="image/png")
 
 
 @router.delete("/{scenario_id}", status_code=204)

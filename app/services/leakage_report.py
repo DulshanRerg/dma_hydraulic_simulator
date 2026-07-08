@@ -213,8 +213,8 @@ def analyse_leakage(
     for pid, results in pipe_ts.items():
         flows_m3h = [abs(pr.flow_rate * 3600) for pr in results if pr.flow_rate is not None]
         raw_flows  = [pr.flow_rate * 3600 for pr in results if pr.flow_rate is not None]
-        lat = results[0].lat if results else 0.0
-        lon = results[0].lon if results else 0.0
+        lat = results[0].lat if results and results[0].lat is not None else None
+        lon = results[0].lon if results and results[0].lon is not None else None
 
         avg_flow = _avg(flows_m3h)
         max_flow = max(flows_m3h) if flows_m3h else 0.0
@@ -271,23 +271,24 @@ def analyse_leakage(
 
         # Approximate adjacent node pressure from spatial proximity
         nearby_pressures = []
-        for nid, nresults in list(node_ts.items())[:50]:   # sample for speed
-            if nresults and nresults[0].lat is not None:
-                d = math.hypot(
-                    (nresults[0].lat - lat) * 111_320,
-                    (nresults[0].lon - lon) * 111_320 * math.cos(math.radians(lat)),
-                )
-                if d < 500:
-                    p_vals = [r.pressure for r in nresults if r.pressure is not None]
-                    if p_vals:
-                        nearby_pressures.append(min(p_vals))
+        if lat is not None and lon is not None:
+            for nid, nresults in list(node_ts.items())[:50]:   # sample for speed
+                if nresults and nresults[0].lat is not None and nresults[0].lon is not None:
+                    d = math.hypot(
+                        (nresults[0].lat - lat) * 111_320,
+                        (nresults[0].lon - lon) * 111_320 * math.cos(math.radians(lat)),
+                    )
+                    if d < 500:
+                        p_vals = [r.pressure for r in nresults if r.pressure is not None]
+                        if p_vals:
+                            nearby_pressures.append(min(p_vals))
 
         min_adj_p = min(nearby_pressures) if nearby_pressures else None
 
         pipe_risks.append(PipeRisk(
             pipe_id     = pid,
-            lat         = round(lat, 7),
-            lon         = round(lon, 7),
+            lat         = round(lat, 7) if lat is not None else None,
+            lon         = round(lon, 7) if lon is not None else None,
             risk_score  = round(score, 4),
             risk_level  = _risk_level(score),
             drivers     = drivers,

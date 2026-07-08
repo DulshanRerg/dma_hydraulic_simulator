@@ -241,32 +241,48 @@ def _haversine(lon1, lat1, lon2, lat2) -> float:
 
 # ── DMA polygon from GPKG ─────────────────────────────────────────────────────
 
-def _read_dma_polygon(cur: sqlite3.Cursor) -> Tuple[str, List[Tuple[float, float]]]:
-    """Return (dma_name, exterior_ring) from the 'dma' layer."""
+def _read_dma_polygon(
+    cur: sqlite3.Cursor,
+    zone_name: str = None,
+) -> Tuple[str, List[Tuple[float, float]]]:
+    """
+    Return (dma_name, exterior_ring) from the 'dma' layer.
+    If zone_name is given (case-insensitive substring), select that row;
+    otherwise the first row (smallest fid) is used.
+    """
     import struct
     rows = cur.execute('SELECT fid, geom, "Name" FROM dma ORDER BY fid').fetchall()
     if not rows:
         raise InvalidGpkgError("No rows in 'dma' layer — upload a GeoPackage with a dma layer.")
-    row = rows[0]
-    name = str(row[2] or "DMA")
-    wkb = bytes(row[1])
 
-    # parse polygon WKB
+    chosen = rows[0]
+    if zone_name:
+        zone_lower = zone_name.lower()
+        for row in rows:
+            if zone_lower in str(row[2] or "").lower():
+                chosen = row
+                break
+
+    name = str(chosen[2] or "DMA")
+    wkb  = bytes(chosen[1])
+
     off = 0
     if wkb[:2] == b'GP':
-        flags = wkb[3]
+        flags         = wkb[3]
         envelope_type = (flags >> 1) & 0x07
-        env_size = [0, 32, 48, 48, 64][envelope_type] if envelope_type < 5 else 0
-        off = 8 + env_size
-    bo = '<' if wkb[off] == 1 else '>'; off += 1
+        env_size      = [0, 32, 48, 48, 64][envelope_type] if envelope_type < 5 else 0
+        off           = 8 + env_size
+    bo    = '<' if wkb[off] == 1 else '>'; off += 1
     gtype = struct.unpack_from(bo + 'I', wkb, off)[0]; off += 4
-    if gtype in (3, 6, 1003, 2003, 3003):  # polygon / multi
-        if gtype in (6, 1006, 2006, 3006):  # multi → first ring of first polygon
+
+    if gtype in (3, 6, 1003, 2003, 3003):
+        if gtype in (6, 1006, 2006, 3006):
             n_polys = struct.unpack_from(bo + 'I', wkb, off)[0]; off += 4
-            if n_polys == 0: raise InvalidGpkgError("Empty MultiPolygon in dma layer.")
-            off += 5  # skip inner wkbByteOrder + wkbType
+            if n_polys == 0:
+                raise InvalidGpkgError("Empty MultiPolygon in dma layer.")
+            off += 5
         n_rings = struct.unpack_from(bo + 'I', wkb, off)[0]; off += 4
-        n_pts = struct.unpack_from(bo + 'I', wkb, off)[0]; off += 4
+        n_pts   = struct.unpack_from(bo + 'I', wkb, off)[0]; off += 4
         ring = []
         for _ in range(n_pts):
             x, y = struct.unpack_from(bo + 'dd', wkb, off); off += 16
@@ -299,10 +315,62 @@ def _tank_diameter(cap_m3: Optional[float], depth_m: Optional[float]) -> float:
     return 5.0  # fallback
 
 
-def ingest_dma(filename: str, clip_to_dma: bool = True) -> DMAData:
+def list_dma_zones(filename: str) -> list:
     """
-    Load all DMA assets from `filename` (a multi-layer GPKG in the GPKG_DIR).
-    Returns a DMAData with assets clipped to the DMA polygon.
+    Return a list of all DMA zones (rows in the dma layer).
+    Used by the frontend to let users pick one DMA when the file
+    contains multiple DMA polygons.
+    """
+    settings = get_settings()
+    import os
+    path = os.path.join(settings.gpkg_dir, filename)
+    if not os.path.isfile(path):
+        raise GpkgNotFoundError(filename)
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    layers_present = {r[0] for r in cur.execute("SELECT table_name FROM gpkg_contents").fetchall()}
+    if "dma" not in layers_present:
+        conn.close()
+        return []
+    rows = cur.execute('SELECT fid, "Name", geom FROM dma ORDER BY fid').fetchall()
+    conn.close()
+    result = []
+    for row in rows:
+        name = str(row["Name"] or f"DMA_{row['fid']}")
+        try:
+            _, ring = _read_dma_polygon(cur_stub := None, zone_name=None)
+        except Exception:
+            ring = []
+        # Use a lightweight BBox via WKB envelope header (bytes 8-40) if present
+        wkb = bytes(row["geom"])
+        bbox = (0.0, 0.0, 0.0, 0.0)
+        try:
+            import struct
+            if wkb[:2] == b'GP' and len(wkb) >= 40:
+                flags = wkb[3]
+                et = (flags >> 1) & 0x07
+                if et == 1:   # has xmin,xmax,ymin,ymax
+                    bo = '<' if (wkb[3] & 0x01) else '>'
+                    xmin, xmax, ymin, ymax = struct.unpack_from(bo + 'dddd', wkb, 8)
+                    bbox = (xmin, ymin, xmax, ymax)
+        except Exception:
+            pass
+        result.append({"fid": int(row["fid"]), "name": name, "bbox": bbox})
+    return result
+
+
+def ingest_dma(filename: str, clip_to_dma: bool = True, zone_name: str = None) -> "DMAData":
+    """
+    Load all DMA assets from `filename`.
+
+    Parameters
+    ----------
+    filename     : base filename of the .gpkg in GPKG_DIR
+    clip_to_dma  : clip all assets to the DMA polygon boundary
+    zone_name    : when the file has multiple DMA polygons, pick the one
+                   whose Name matches this string (case-insensitive substring
+                   match). If None, the first row is used.
     """
     settings = get_settings()
     import os
@@ -322,7 +390,7 @@ def ingest_dma(filename: str, clip_to_dma: bool = True) -> DMAData:
         raise InvalidGpkgError(f"Missing required layers in GeoPackage: {missing}")
 
     # ── DMA polygon ────────────────────────────────────────────────────────────
-    dma_name, dma_ring = _read_dma_polygon(cur)
+    dma_name, dma_ring = _read_dma_polygon(cur, zone_name=zone_name)
     lons = [p[0] for p in dma_ring]; lats = [p[1] for p in dma_ring]
     dma_bbox = (min(lons), min(lats), max(lons), max(lats))
     logger.info("DMA '%s' bbox=%s", dma_name, dma_bbox)

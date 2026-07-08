@@ -9,14 +9,11 @@ epanet_service_epytflow/
 │   ├── routers/
 │   │   ├── dma.py                   DMA endpoints (layers/simulate/leakage/nrw)
 │   │   ├── files.py                 GET /files
-│   │   ├── network.py               Network selection endpoints
 │   │   └── simulation.py            Scenario simulation endpoints
 │   ├── services/
 │   │   ├── dma_builder.py           DMA EPANET .inp builder (multi-source/tank)
 │   │   ├── dma_ingest.py            Multi-layer GPKG → typed DMA asset dataclasses
 │   │   ├── leakage_report.py        Hydraulic leakage analysis (NRW/ILI/risk)
-│   │   ├── network_builder.py       Whole-network .gpkg → .inp
-│   │   ├── network_subset.py        Spatial selection + connected-component graph
 │   │   ├── rpt_parser.py            EPANET .rpt flow balance parser
 │   │   ├── simulation_service.py    EPyT-Flow v0.17.x runner (fixed API names)
 │   │   └── topology_repair.py       Shapely snap + T-split + MST connector insertion
@@ -26,11 +23,8 @@ epanet_service_epytflow/
 │   ├── db/.gitkeep
 │   └── gpkg/
 │       ├── DUWASA.gpkg              Consolidated DMA dataset (pipes+sources+tanks+valves+DMA)
-│       ├── duwas_network.gpkg       Original pipe-only network
-│       └── pipes_cleaned.gpkg
 ├── frontend/
-│   ├── dma_explorer.html            DMA Leakage Explorer (Leaflet + NRW dashboard)
-│   └── network_explorer.html        Sub-network selection & simulation UI
+│   ├── dma_explorer.html            DMA Water Leakage Explorer
 ├── tests/
 │   ├── conftest.py                  Shared DB-init fixture
 │   ├── test_api.py                  Original API integration tests

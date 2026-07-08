@@ -14,7 +14,6 @@ from pydantic import BaseModel
 
 from app.core.auth import require_api_key
 from app.core.config import get_settings
-from app.services.network_builder import list_gpkg_files
 
 router = APIRouter(prefix="/files", tags=["files"])
 
@@ -23,6 +22,17 @@ class GpkgFileInfo(BaseModel):
     filename:  str
     size_kb:   float
     layer:     str = "unknown"
+
+
+def list_gpkg_files() -> List[str]:
+    """Return a sorted list of .gpkg filenames found in the configured gpkg_dir."""
+    settings = get_settings()
+    gpkg_dir = settings.gpkg_dir
+    if not os.path.isdir(gpkg_dir):
+        return []
+    return sorted(
+        f for f in os.listdir(gpkg_dir) if f.lower().endswith(".gpkg")
+    )
 
 
 @router.get("", response_model=List[GpkgFileInfo])

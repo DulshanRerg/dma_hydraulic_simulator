@@ -1,0 +1,140 @@
+  Page 1                                    Wed Jul  8 09:16:37 2026
+
+  ******************************************************************
+  *                           E P A N E T                          *
+  *                   Hydraulic and Water Quality                  *
+  *                   Analysis for Pipe Networks                   *
+  *                          Version 2.3.05                        *
+  ******************************************************************
+  
+  DUWASA Zone 03 & 04 DMA Hydraulic Simulation
+   
+      Input Data File ................... /tmp/dma_epyt_xrw0fgka/dma_network.inp
+      Number of Junctions................ 361
+      Number of Reservoirs............... 6
+      Number of Tanks ................... 2
+      Number of Pipes ................... 486
+      Number of Pumps ................... 0
+      Number of Valves .................. 0
+      Headloss Formula .................. Hazen-Williams
+      Nodal Demand Model ................ DDA
+      Hydraulic Timestep ................ 1.00 hrs
+      Hydraulic Accuracy ................ 0.001000
+      Status Check Frequency ............ 2
+      Maximum Trials Checked ............ 10
+      Damping Limit Threshold ........... 0.000000
+      Maximum Trials .................... 200
+      Quality Analysis .................. Age
+      Water Quality Time Step ........... 5.00 min
+      Water Quality Tolerance ........... 0.01 hrs
+      Specific Gravity .................. 1.00
+      Relative Kinematic Viscosity ...... 1.00
+      Relative Chemical Diffusivity ..... 1.00
+      Demand Multiplier ................. 1.00
+      Total Duration .................... 24.00 hrs
+      Reporting Criteria:
+         No Nodes
+         No Links
+   
+  Analysis begun Wed Jul  8 09:16:43 2026
+
+   
+  Hydraulic Status:
+  -----------------------------------------------------------------------
+     0:00:00: Balanced after 8 trials
+     0:00:00: Reservoir J347 is emptying
+     0:00:00: Reservoir J98 is filling
+     0:00:00: Reservoir J334 is emptying
+     0:00:00: Reservoir J353 is emptying
+     0:00:00: Reservoir J336 is emptying
+     0:00:00: Reservoir J354 is emptying
+     0:00:00: Tank J342 is emptying at 1.80 m
+     0:00:00: Tank J346 is filling at 1.80 m
+   
+     0:03:01: Balanced after 7 trials
+     0:03:01: Reservoir J334 is filling
+     0:03:01: Reservoir J336 is filling
+
+  Page 2                    DUWASA Zone 03 & 04 DMA Hydraulic Simulation
+
+     0:03:01: Reservoir J354 is filling
+     0:03:01: Tank J346 is closed at 3.00 m
+     0:03:01: Pipe P477 changed from open to temporarily closed
+     0:03:01: Pipe P480 changed from open to temporarily closed
+     0:03:01: Pipe P481 changed from open to temporarily closed
+   
+     1:00:00: Balanced after 1 trials
+   
+     2:00:00: Balanced after 1 trials
+   
+     3:00:00: Balanced after 1 trials
+   
+     4:00:00: Balanced after 1 trials
+   
+     5:00:00: Balanced after 1 trials
+   
+     6:00:00: Balanced after 1 trials
+   
+     7:00:00: Balanced after 1 trials
+   
+     8:00:00: Balanced after 1 trials
+   
+     9:00:00: Balanced after 1 trials
+   
+    10:00:00: Balanced after 1 trials
+   
+    11:00:00: Balanced after 1 trials
+   
+    12:00:00: Balanced after 1 trials
+   
+    13:00:00: Balanced after 1 trials
+   
+    14:00:00: Balanced after 1 trials
+   
+    15:00:00: Balanced after 1 trials
+   
+    16:00:00: Balanced after 1 trials
+   
+    17:00:00: Balanced after 1 trials
+   
+    18:00:00: Balanced after 1 trials
+   
+    19:00:00: Balanced after 1 trials
+   
+    20:00:00: Balanced after 1 trials
+   
+    21:00:00: Balanced after 1 trials
+   
+    22:00:00: Balanced after 1 trials
+   
+    23:00:00: Balanced after 1 trials
+   
+
+  Page 3                    DUWASA Zone 03 & 04 DMA Hydraulic Simulation
+
+    24:00:00: Balanced after 1 trials
+   
+  Hydraulic Flow Balance (m3/h)
+  ================================
+  Total Inflow:           103.082
+  Consumer Demand:          4.752
+  Demand Deficit:           0.000
+  Emitter Flow:             0.000
+  Leakage Flow:             0.000
+  Total Outflow:          139.589
+  Storage Flow:           -36.508
+  Flow Ratio:               1.000
+  ================================
+
+  Water Quality Mass Balance (hrs)
+  ================================
+  Initial Mass:       0.00000e+00
+  Mass Inflow:        0.00000e+00
+  Mass Outflow:       4.61851e+05
+  Mass Reacted:      -1.35954e+06
+  Final Mass:         8.97686e+05
+  Mass Ratio:         1.00000
+  Total Segments:     507
+  ================================
+
+  Analysis ended Wed Jul  8 09:16:43 2026

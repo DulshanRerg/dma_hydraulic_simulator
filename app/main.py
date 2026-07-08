@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
 from app.core.database import init_db
-from app.routers import dma, files, network, simulation
+from app.routers import dma, files, simulation, upload
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,30 +41,32 @@ def create_app() -> FastAPI:
         title       = settings.service_name,
         version     = settings.service_version,
         description = (
-            "Standalone EPANET hydraulic simulation service.\n\n"
-            "Reads `.gpkg` pipe-network files from a shared volume, "
-            "runs Extended Period Simulations via **wntr / EPANET**, "
-            "and exposes pressure, flow, velocity, and water-age results "
-            "through a REST API secured by API-key authentication.\n\n"
-            "All endpoints require the `X-API-Key` header."
+            "DUWASA DMA Hydraulic Simulation Service.\n\n"
+            "Reads multi-layer `.gpkg` files (pipes, sources, tanks, valves, DMA boundary) "
+            "from a shared volume, builds EPANET models with automatic topology repair, "
+            "runs 24-hour Extended Period Simulations via **EPyT-Flow / EPANET**, and "
+            "exposes pressure, flow, NRW, and leakage-risk results through a REST API "
+            "secured by API-key authentication.\n\n"
+            "All endpoints require the `X-API-Key` header.\n\n"
+            "Start a simulation: `POST /dma/{filename}/simulate`"
         ),
         lifespan    = lifespan,
         docs_url    = "/docs",
         redoc_url   = "/redoc",
     )
 
-    # ── CORS (adjust origins for production) ──────────────────────────────────
+    # ── CORS (restrict origins for production) ────────────────────────────────
     app.add_middleware(
         CORSMiddleware,
-        allow_origins     = ["*"],   # restrict to your main system's domain in prod
+        allow_origins     = ["*"],
         allow_credentials = True,
         allow_methods     = ["*"],
         allow_headers     = ["*"],
     )
 
-    # ── routers ────────────────────────────────────────────────────────────────
+    # ── routers ───────────────────────────────────────────────────────────────
     app.include_router(files.router)
-    app.include_router(network.router)
+    app.include_router(upload.router)
     app.include_router(dma.router)
     app.include_router(simulation.router)
 

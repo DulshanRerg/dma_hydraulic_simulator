@@ -84,6 +84,18 @@ _FB_PATTERNS: List[Tuple[str, str]] = [
 _STATUS_RE = re.compile(r"^\s+(\d+:\d+:\d+):\s+(.+)$")
 
 
+def persisted_report_path(scenario_id: int) -> str:
+    """
+    Deterministic path where the worker copies a scenario's .rpt file so it
+    survives temp-dir cleanup. Shared by the worker (writer) and the
+    /simulate/{id}/report* endpoints (readers) so there is a single
+    source of truth for the naming convention.
+    """
+    from app.core.config import get_settings  # local import avoids a cycle
+    settings = get_settings()
+    return os.path.join(settings.reports_dir, f"scenario_{scenario_id}.rpt")
+
+
 def parse_rpt(inp_path: str) -> Optional[RptData]:
     """
     Parse the EPANET .rpt file associated with `inp_path`
@@ -91,7 +103,18 @@ def parse_rpt(inp_path: str) -> Optional[RptData]:
 
     Returns None if the .rpt file does not exist or cannot be read.
     """
-    rpt_path = inp_path + ".rpt"
+    return parse_rpt_file(inp_path + ".rpt")
+
+
+def parse_rpt_file(rpt_path: str) -> Optional[RptData]:
+    """
+    Parse an EPANET .rpt file given its exact path (as opposed to
+    `parse_rpt`, which derives the path from an .inp path). Used to read
+    back a persisted report copy, e.g. one saved by the simulation worker
+    into `settings.reports_dir`.
+
+    Returns None if the .rpt file does not exist or cannot be read.
+    """
     if not os.path.isfile(rpt_path):
         return None
 

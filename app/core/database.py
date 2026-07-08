@@ -69,11 +69,9 @@ async def init_db() -> None:
 async def _ensure_sim_scenarios_columns(conn) -> None:
     result   = await conn.execute(text("PRAGMA table_info(sim_scenarios)"))
     existing = {row[1] for row in result.fetchall()}
+    # leakage_frac was added when the DMA workflow replaced the whole-network one
     additions = {
-        "pipe_ids":         "JSON",
-        "reservoir_lat":    "FLOAT",
-        "reservoir_lon":    "FLOAT",
-        "snap_tolerance_m": "FLOAT DEFAULT 2.0",
+        "leakage_frac": "FLOAT DEFAULT 0.20",
     }
     for column, coltype in additions.items():
         if column not in existing:

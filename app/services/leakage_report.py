@@ -43,6 +43,8 @@ HIGH_PRESSURE_M       = 45.0    # m — above this = elevated burst risk
 HIGH_VELOCITY_MS      = 1.5     # m/s — above this = erosion risk
 LEAKAGE_PRESSURE_EXP  = 0.5     # FAVAD leak exponent (N1)
 MIN_RISK_PIPE_DIAM_MM = 50.0    # pipes < this get +20% risk weight (small mains, high NRW)
+DEFAULT_PIPE_DIAM_MM  = 100.0   # used only when the real diameter is unknown
+NEARBY_NODE_RADIUS_M  = 500.0   # radius used to find nodes "adjacent" to a pipe
 
 
 # ── dataclasses ───────────────────────────────────────────────────────────────
@@ -56,6 +58,7 @@ class NRWEstimate:
     real_loss_m3h:      float   # real losses (leakage) ≈ NRW × 0.85
     apparent_loss_m3h:  float   # admin / billing errors ≈ NRW × 0.15
     ili:                float   # Infrastructure Leakage Index (>1 = excessive)
+    source:             str = "estimated"  # "epanet_rpt" | "estimated"
 
 @dataclass
 class PressureZone:
@@ -114,11 +117,28 @@ def analyse_leakage(
     dma_name:    str,
     base_demand_m3h: float = 0.011,
     leakage_frac:    float = 0.20,
+    pipe_diam_mm:    Optional[Dict[str, float]] = None,
+    epanet_flow_balance: Optional[dict] = None,
 ) -> LeakageReport:
     """
     Derive the leakage report from a completed SimulationOutput.
+
+    pipe_diam_mm
+        Real per-pipe diameter (mm), keyed by EPANET link ID, as written
+        into the [PIPES] section of the .inp the scenario was built from.
+        When a pipe isn't in this map (e.g. a synthetic topology-repair
+        connector), DEFAULT_PIPE_DIAM_MM is used instead of silently
+        assuming every pipe is 50mm.
+    epanet_flow_balance
+        The parsed EPANET .rpt "Hydraulic Flow Balance" summary
+        (see rpt_parser.rpt_nrw_summary), when available. When its
+        source is "epanet_rpt" this is EPANET's own mass-balance figure
+        and is used for system input / authorised consumption instead
+        of the flow-based heuristic, which is only a fallback for
+        scenarios where no .rpt could be parsed.
     """
     warnings_out: List[str] = []
+    pipe_diam_mm = pipe_diam_mm or {}
 
     # ── index results ─────────────────────────────────────────────────────────
     # node_results: List[NodeResult(element_id, time_step, lat, lon, pressure, ...)]
@@ -138,24 +158,37 @@ def analyse_leakage(
     total_pipes = len(pipe_ts)
 
     # ── NRW estimate ──────────────────────────────────────────────────────────
-    # System input: sum of ALL pipe flows at the first non-zero timestep
-    # (positive flow = supply direction into network)
+    # Preferred source: EPANET's own Hydraulic Flow Balance from the .rpt file
+    # (real mass-balance across reservoirs/tanks/demands, not an estimate).
+    # Fallback: a flow-based heuristic using the top 10% of pipes by average
+    # flow as a proxy for the supply mains, for scenarios where no .rpt could
+    # be parsed (e.g. EPyT-Flow failed to write one, or the file was already
+    # cleaned up).
     all_flows_m3h: List[float] = []
     for plist in pipe_ts.values():
         vals = [abs(pr.flow_rate * 3600) for pr in plist if pr.flow_rate is not None]
         if vals:
             all_flows_m3h.append(_avg(vals))
-
-    # Inflow = flows from source-adjacent pipes (those with highest average flow)
     all_flows_m3h.sort(reverse=True)
     # The top 10% of pipes by flow represent the main supply mains
     top_n = max(1, total_pipes // 10)
-    system_input_m3h = sum(all_flows_m3h[:top_n])
 
-    # Authorised = number of demand nodes × base demand per node
-    # (the builder embedded base_demand_m3h × (1+leakage_frac) at each junction)
+    nrw_source = "estimated"
+    if epanet_flow_balance and epanet_flow_balance.get("source") == "epanet_rpt":
+        system_input_m3h = float(epanet_flow_balance.get("total_inflow_m3h", 0.0))
+        authorised_m3h   = float(epanet_flow_balance.get("consumer_demand_m3h", 0.0))
+        nrw_source = "epanet_rpt"
+    else:
+        system_input_m3h = sum(all_flows_m3h[:top_n])
+        # Authorised = number of demand nodes × base demand per node
+        # (the builder embedded base_demand_m3h × (1+leakage_frac) at each junction)
+        authorised_m3h = total_nodes * base_demand_m3h
+        warnings_out.append(
+            "NRW figures are estimated from pipe-flow heuristics (no EPANET "
+            "flow-balance report available) — treat as indicative only."
+        )
+
     n_demand_nodes = total_nodes
-    authorised_m3h = n_demand_nodes * base_demand_m3h
     nrw_m3h        = max(0.0, system_input_m3h - authorised_m3h)
     nrw_pct        = 100.0 * nrw_m3h / system_input_m3h if system_input_m3h > 0 else 0.0
     real_loss      = nrw_m3h * 0.85
@@ -178,6 +211,7 @@ def analyse_leakage(
         real_loss_m3h     = round(real_loss, 3),
         apparent_loss_m3h = round(apparent_loss, 3),
         ili               = round(ili, 2),
+        source            = nrw_source,
     )
 
     # ── pressure zones ────────────────────────────────────────────────────────
@@ -207,6 +241,39 @@ def analyse_leakage(
         _zone("high",   high_nodes),
     ]
 
+    # ── spatial index of node pressures, for O(1)-ish "nearby node" lookups ────
+    # Bucket every node into a grid cell sized to NEARBY_NODE_RADIUS_M so each
+    # pipe only has to scan its own cell + 8 neighbours, instead of either
+    # scanning all nodes (slow on large networks) or an arbitrary first-50
+    # sample (silently wrong — most pipes never matched any node at all).
+    cell_deg = NEARBY_NODE_RADIUS_M / 111_320.0
+    node_grid: Dict[Tuple[int, int], List[Tuple[float, float, float, float]]] = {}
+    # each entry: (lat, lon, min_pressure, avg_pressure)
+    for nid, nresults in node_ts.items():
+        n0 = nresults[0]
+        if n0.lat is None or n0.lon is None:
+            continue
+        p_vals = [r.pressure for r in nresults if r.pressure is not None]
+        if not p_vals:
+            continue
+        cell = (int(n0.lat // cell_deg), int(n0.lon // cell_deg))
+        node_grid.setdefault(cell, []).append((n0.lat, n0.lon, min(p_vals), _avg(p_vals)))
+
+    def _nearby_node_pressures(lat: float, lon: float) -> List[Tuple[float, float]]:
+        """Returns [(min_pressure, avg_pressure), ...] for nodes within radius."""
+        cx, cy = int(lat // cell_deg), int(lon // cell_deg)
+        out = []
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for (nlat, nlon, nmin, navg) in node_grid.get((cx + dx, cy + dy), []):
+                    d = math.hypot(
+                        (nlat - lat) * 111_320,
+                        (nlon - lon) * 111_320 * math.cos(math.radians(lat)),
+                    )
+                    if d <= NEARBY_NODE_RADIUS_M:
+                        out.append((nmin, navg))
+        return out
+
     # ── pipe risk scoring ─────────────────────────────────────────────────────
     pipe_risks: List[PipeRisk] = []
 
@@ -219,8 +286,11 @@ def analyse_leakage(
         avg_flow = _avg(flows_m3h)
         max_flow = max(flows_m3h) if flows_m3h else 0.0
 
-        # Approximate velocity: v = Q / A, assume d ≈ 50mm if unknown
-        diam_m = 0.05
+        # Velocity: v = Q / A, using the pipe's real diameter from the .inp
+        # this scenario was built from (falls back to DEFAULT_PIPE_DIAM_MM
+        # only for synthetic topology-repair connectors / unknown pipes).
+        diam_mm = pipe_diam_mm.get(pid, DEFAULT_PIPE_DIAM_MM)
+        diam_m  = diam_mm / 1000.0
         area_m2 = math.pi * (diam_m / 2) ** 2
         velocity_ms = (avg_flow / 3600) / area_m2 if area_m2 > 0 else 0.0
 
@@ -230,24 +300,29 @@ def analyse_leakage(
             if raw_flows[i] * raw_flows[i-1] < 0
         )
 
+        # Local pressure context: nodes actually adjacent to this pipe, not a
+        # network-wide average/fraction applied identically to every pipe.
+        nearby = _nearby_node_pressures(lat, lon) if lat is not None and lon is not None else []
+        min_adj_p = min((m for m, _ in nearby), default=None)
+        avg_adj_p = _avg([a for _, a in nearby]) if nearby else None
+
         drivers: List[str] = []
         score = 0.0
 
-        # 1. High pressure → elevated leak rate (FAVAD model)
+        # 1. High local pressure → elevated leak rate (FAVAD model)
         # Pressure score ∝ (P/ref)^N1, ref = 20 m
         ref_p = 20.0
-        if high_nodes and avg_p > ref_p:
-            p_score = min(1.0, (avg_p / ref_p) ** LEAKAGE_PRESSURE_EXP - 1.0)
+        if avg_adj_p is not None and avg_adj_p > ref_p:
+            p_score = min(1.0, (avg_adj_p / ref_p) ** LEAKAGE_PRESSURE_EXP - 1.0)
             score += p_score * 0.35
             if p_score > 0.3:
-                drivers.append(f"High avg pressure ({avg_p:.0f} m)")
+                drivers.append(f"High local pressure ({avg_adj_p:.0f} m)")
 
-        # 2. Low pressure → probable burst or large leak
-        if low_nodes:
-            low_frac = len(low_nodes) / total_nodes
-            score += low_frac * 0.30
-            if low_frac > 0.05:
-                drivers.append(f"{len(low_nodes)} low-pressure nodes ({low_frac*100:.0f}%)")
+        # 2. Low local pressure → probable burst or large leak nearby
+        if min_adj_p is not None and min_adj_p < LOW_PRESSURE_M:
+            deficit_frac = min(1.0, (LOW_PRESSURE_M - min_adj_p) / LOW_PRESSURE_M)
+            score += deficit_frac * 0.30
+            drivers.append(f"Low pressure nearby ({min_adj_p:.1f} m)")
 
         # 3. High velocity
         if velocity_ms > HIGH_VELOCITY_MS:
@@ -261,29 +336,13 @@ def analyse_leakage(
             drivers.append(f"Flow reversal ({reversals}×)")
 
         # 5. Small diameter bonus (small mains have disproportionate NRW)
-        if diam_m * 1000 < MIN_RISK_PIPE_DIAM_MM:
+        if diam_mm < MIN_RISK_PIPE_DIAM_MM:
             score += 0.10
-            drivers.append(f"Small diameter ({diam_m*1000:.0f} mm)")
+            drivers.append(f"Small diameter ({diam_mm:.0f} mm)")
 
         score = min(1.0, max(0.0, score))
         if not drivers:
             drivers.append("No significant risk indicators")
-
-        # Approximate adjacent node pressure from spatial proximity
-        nearby_pressures = []
-        if lat is not None and lon is not None:
-            for nid, nresults in list(node_ts.items())[:50]:   # sample for speed
-                if nresults and nresults[0].lat is not None and nresults[0].lon is not None:
-                    d = math.hypot(
-                        (nresults[0].lat - lat) * 111_320,
-                        (nresults[0].lon - lon) * 111_320 * math.cos(math.radians(lat)),
-                    )
-                    if d < 500:
-                        p_vals = [r.pressure for r in nresults if r.pressure is not None]
-                        if p_vals:
-                            nearby_pressures.append(min(p_vals))
-
-        min_adj_p = min(nearby_pressures) if nearby_pressures else None
 
         pipe_risks.append(PipeRisk(
             pipe_id     = pid,

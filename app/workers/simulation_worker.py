@@ -51,6 +51,37 @@ def _parse_inp_coordinates(inp_path: str) -> dict:
     return coords
 
 
+def _parse_inp_pipe_diameters(inp_path: str) -> dict:
+    """
+    Parse [PIPES] from .inp → {pipe_id: diam_mm}.
+
+    Used so the leakage-risk report can compute real per-pipe velocity
+    instead of assuming a fixed diameter for every pipe. Must be captured
+    here, at build/run time, because the .inp is deleted once the scenario
+    finishes (see the `finally` block below) and the leakage report is
+    generated later, on demand, from persisted DB rows alone.
+    """
+    diam_mm, in_sec = {}, False
+    with open(inp_path) as f:
+        for line in f:
+            s = line.strip()
+            if s.upper().startswith("[PIPES]"):
+                in_sec = True
+                continue
+            if s.startswith("[") and in_sec:
+                break
+            if not in_sec or s.startswith(";") or not s:
+                continue
+            parts = s.split()
+            # ;ID  Node1  Node2  Length(m)  Diam(mm)  C(H-W)  Minor  Status
+            if len(parts) >= 5:
+                try:
+                    diam_mm[parts[0]] = float(parts[4])
+                except ValueError:
+                    continue
+    return diam_mm
+
+
 def _nearest_node(lat: float, lon: float, coords: dict) -> str:
     best, best_d = None, float("inf")
     for nid, (nx, ny) in coords.items():
@@ -166,9 +197,10 @@ async def run_simulation_task(scenario_id: int) -> None:
         logger.info("[%d] .inp → %s", scenario_id, inp_path)
 
         logger.info(
-            "[%d] leakage_frac=%s",
+            "[%d] leakage_frac=%s demand_model=%s",
             scenario_id,
             scenario.leakage_frac,
+            scenario.demand_model,
         )
 
         # step 2: resolve leak events
@@ -217,6 +249,10 @@ async def run_simulation_task(scenario_id: int) -> None:
             duration_hrs  = scenario.duration_hrs,
             time_step_min = scenario.time_step_min,
             leak_events   = leak_events,
+            demand_model          = scenario.demand_model,
+            pda_pressure_min      = scenario.pda_pressure_min,
+            pda_pressure_required = scenario.pda_pressure_required,
+            pda_pressure_exponent = scenario.pda_pressure_exponent,
         )
 
         # step 4: persist
@@ -278,6 +314,16 @@ async def run_simulation_task(scenario_id: int) -> None:
             # Merge EPANET's own .rpt flow balance into the summary
             # so the NRW endpoint gets real figures, not estimates.
             merged_summary = dict(output.summary)
+
+            # Real per-pipe diameters (mm) — captured now because the .inp
+            # (and with it the [PIPES] section) is deleted in `finally` below,
+            # but the leakage report is generated later, on demand.
+            try:
+                merged_summary["pipe_diam_mm"] = _parse_inp_pipe_diameters(inp_path)
+            except OSError as diam_exc:
+                logger.warning("[%d] Could not parse pipe diameters: %s", scenario_id, diam_exc)
+                merged_summary["pipe_diam_mm"] = {}
+
             rpt = parse_rpt(inp_path)
             if rpt:
                 merged_summary["epanet_flow_balance"] = rpt_nrw_summary(rpt)

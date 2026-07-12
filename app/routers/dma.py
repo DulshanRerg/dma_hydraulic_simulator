@@ -117,6 +117,15 @@ class DMASimRequest(BaseModel):
     base_demand_m3h: float = Field(0.011, gt=0)
     leakage_frac:    float = Field(0.20,  ge=0, le=1.0)
 
+    demand_model: str = Field(
+        "DDA",
+        pattern="^(DDA|PDA)$",
+        description="Hydraulic demand model: 'DDA' (default) or 'PDA'.",
+    )
+    pda_pressure_min:      float = Field(0.0, ge=0)
+    pda_pressure_required: float = Field(0.1, gt=0)
+    pda_pressure_exponent: float = Field(0.5, gt=0)
+
 
 @router.post("/{filename}/simulate", status_code=202)
 async def simulate_dma(
@@ -164,6 +173,10 @@ async def simulate_dma(
         duration_hrs   = body.duration_hrs,
         time_step_min  = body.time_step_min,
         reservoir_head = 0.0,
+        demand_model          = body.demand_model,
+        pda_pressure_min      = body.pda_pressure_min,
+        pda_pressure_required = body.pda_pressure_required,
+        pda_pressure_exponent = body.pda_pressure_exponent,
         extra_demands  = {
             "_dma_inp_path":        inp_path,
             "_dma_name":            dma.dma_name,
@@ -255,6 +268,15 @@ class DMAAdvancedSimRequest(BaseModel):
     base_demand_m3h:  float = Field(0.011, gt=0)
     leakage_frac:     float = Field(0.20, ge=0, le=1.0)
 
+    demand_model: str = Field(
+        "DDA",
+        pattern="^(DDA|PDA)$",
+        description="Hydraulic demand model: 'DDA' (default) or 'PDA'.",
+    )
+    pda_pressure_min:      float = Field(0.0, ge=0)
+    pda_pressure_required: float = Field(0.1, gt=0)
+    pda_pressure_exponent: float = Field(0.5, gt=0)
+
     # EPyT-Flow events
     leakage_events:   List[LeakageEventModel]  = Field(default_factory=list)
     sensor_faults:    List[SensorFaultModel]   = Field(default_factory=list)
@@ -326,6 +348,10 @@ async def simulate_dma_advanced(
         duration_hrs   = body.duration_hrs,
         time_step_min  = body.time_step_min,
         reservoir_head = 0.0,
+        demand_model          = body.demand_model,
+        pda_pressure_min      = body.pda_pressure_min,
+        pda_pressure_required = body.pda_pressure_required,
+        pda_pressure_exponent = body.pda_pressure_exponent,
         extra_demands  = {
             "_dma_inp_path":          inp_path,
             "_dma_name":              dma.dma_name,
@@ -457,14 +483,28 @@ async def get_leakage_report(
                 headloss   = sr.headloss, is_high_velocity = sr.is_high_velocity,
             ))
 
-    sim_output = SimulationOutput(node_results=node_results, pipe_results=pipe_results)
+    # scenario.summary carries the real values captured at run time
+    # (pressure_avg_m, time_steps, duration_hrs, the EPANET .rpt flow
+    # balance, and real per-pipe diameters) — the .inp file itself is long
+    # gone by the time this report is requested, so this is the only place
+    # those figures can still come from. Without it, analyse_leakage()
+    # would silently fall back to hardcoded defaults (20m pressure, 1
+    # timestep, 24hr duration, 50mm pipes) regardless of the actual run.
+    scenario_summary = scenario.summary or {}
+    sim_output = SimulationOutput(
+        node_results = node_results,
+        pipe_results = pipe_results,
+        summary      = scenario_summary,
+    )
     extra  = scenario.extra_demands or {}
     report = analyse_leakage(
-        output          = sim_output,
-        scenario_id     = scenario_id,
-        dma_name        = extra.get("_dma_name", "DMA"),
-        base_demand_m3h = scenario.base_demand or 0.011,
-        leakage_frac    = extra.get("_leakage_frac", 0.20),
+        output              = sim_output,
+        scenario_id         = scenario_id,
+        dma_name            = extra.get("_dma_name", "DMA"),
+        base_demand_m3h     = scenario.base_demand or 0.011,
+        leakage_frac        = extra.get("_leakage_frac", 0.20),
+        pipe_diam_mm        = scenario_summary.get("pipe_diam_mm", {}),
+        epanet_flow_balance = scenario_summary.get("epanet_flow_balance"),
     )
 
     return {
@@ -479,6 +519,7 @@ async def get_leakage_report(
             "real_loss_m3h":     report.nrw.real_loss_m3h,
             "apparent_loss_m3h": report.nrw.apparent_loss_m3h,
             "ili":               report.nrw.ili,
+            "source":            report.nrw.source,
         },
         "pressure_zones": [
             {"zone": z.zone, "count": z.count, "pct": z.avg_pct,

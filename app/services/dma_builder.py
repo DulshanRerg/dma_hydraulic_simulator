@@ -223,7 +223,7 @@ def build_dma_inp(
         is_bm    = key in bm_nodes
         demand   = 0.0 if is_bm else demand_m3h
         elev     = round(_idw_elev(lon, lat, dma.sources, dma.tanks, avg_src_elev), 1)
-        inp.row(key, elev, round(demand, 6), "")
+        inp.row(key, elev, round(demand, 6), "DIURNAL")
 
     # RESERVOIRS (boreholes)
     inp.section("RESERVOIRS")
@@ -274,7 +274,7 @@ def build_dma_inp(
         1.0, 1.1, 1.0, 0.9, 1.0, 1.3,
         1.4, 1.2, 1.0, 0.8, 0.6, 0.4,
     ]
-    inp.row(";DIURNAL", " ".join(str(v) for v in diurnal))
+    inp.row("DIURNAL", *[f"{v:.2f}" for v in diurnal])
 
     inp.section("ENERGY")
     inp.raw("  Global Efficiency  75")

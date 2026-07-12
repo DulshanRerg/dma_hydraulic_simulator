@@ -1,1015 +1,1806 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>DUWASA DMA Hydraulic Explorer</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<style>
-:root{
-  --bg:#090d10;--panel:#0f1820;--panel2:#142030;--border:#1a2c3a;--border2:#234058;
-  --text:#c8dde8;--dim:#6b8fa0;--faint:#2e4a5a;
-  --cyan:#2ec9de;--cyan2:#1a5a65;
-  --amber:#e09a2a;--amber2:#4a350a;
-  --red:#e04840;--red2:#4a1810;
-  --green:#3dbf72;--green2:#104028;
-  --purple:#7b6ff0;--blue:#50a0d8;
-  --teal:#1eb8a0;--orange:#d06030;
-  --mono:'JetBrains Mono',monospace;--sans:'Inter',system-ui,sans-serif;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px}
-#app{display:flex;height:100vh;overflow:hidden}
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>DUWASA DMA Hydraulic Explorer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js">
+    </script>
+    <style>
+        :root {
+            --bg: #090d10;
+            --panel: #0f1820;
+            --panel2: #142030;
+            --border: #1a2c3a;
+            --border2: #234058;
+            --text: #c8dde8;
+            --dim: #6b8fa0;
+            --faint: #2e4a5a;
+            --cyan: #2ec9de;
+            --cyan2: #1a5a65;
+            --amber: #e09a2a;
+            --amber2: #4a350a;
+            --red: #e04840;
+            --red2: #4a1810;
+            --green: #3dbf72;
+            --green2: #104028;
+            --purple: #7b6ff0;
+            --blue: #50a0d8;
+            --teal: #1eb8a0;
+            --orange: #d06030;
+            --mono: 'JetBrains Mono', monospace;
+            --sans: 'Inter', system-ui, sans-serif;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0
+        }
+        html,
+        body {
+            height: 100%;
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+            font-size: 13px
+        }
+        #app {
+            display: flex;
+            height: 100vh;
+            overflow: hidden
+        }
 
-/* sidebar */
-#sidebar{width:420px;min-width:420px;display:flex;flex-direction:column;background:var(--panel);border-right:1px solid var(--border)}
-#sb-head{padding:14px 18px 12px;border-bottom:1px solid var(--border)}
-#sb-head h1{font-size:13px;font-weight:700;letter-spacing:.06em;color:var(--text)}
-#sb-head p{font-size:10px;color:var(--dim);margin-top:2px;font-family:var(--mono)}
+        /* sidebar */
+        #sidebar {
+            width: 420px;
+            min-width: 420px;
+            display: flex;
+            flex-direction: column;
+            background: var(--panel);
+            border-right: 1px solid var(--border)
+        }
+        #sb-head {
+            padding: 14px 18px 12px;
+            border-bottom: 1px solid var(--border)
+        }
+        #sb-head h1 {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: .06em;
+            color: var(--text)
+        }
+        #sb-head p {
+            font-size: 10px;
+            color: var(--dim);
+            margin-top: 2px;
+            font-family: var(--mono)
+        }
 
-/* tabs */
-#tabs{display:flex;border-bottom:1px solid var(--border);overflow-x:auto}
-.tab{flex:0 0 auto;padding:8px 12px;font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;font-weight:700;color:var(--dim);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
-.tab.active{color:var(--cyan);border-bottom-color:var(--cyan)}
-.tab:hover:not(.active){color:var(--text)}
+        /* tabs */
+        #tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto
+        }
+        .tab {
+            flex: 0 0 auto;
+            padding: 8px 12px;
+            font-size: 9.5px;
+            letter-spacing: .07em;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--dim);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            white-space: nowrap
+        }
+        .tab.active {
+            color: var(--cyan);
+            border-bottom-color: var(--cyan)
+        }
+        .tab:hover:not(.active) {
+            color: var(--text)
+        }
 
-#sb-body{flex:1;overflow-y:auto;padding:14px 16px}
-#sb-body::-webkit-scrollbar{width:4px}
-#sb-body::-webkit-scrollbar-thumb{background:var(--border2)}
-.tab-pane{display:none}.tab-pane.active{display:block}
+        #sb-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 14px 16px
+        }
+        #sb-body::-webkit-scrollbar {
+            width: 4px
+        }
+        #sb-body::-webkit-scrollbar-thumb {
+            background: var(--border2)
+        }
+        .tab-pane {
+            display: none
+        }
+        .tab-pane.active {
+            display: block
+        }
 
-/* form */
-.field{margin-bottom:9px}
-.field label{display:block;font-size:9.5px;font-family:var(--mono);color:var(--dim);letter-spacing:.05em;margin-bottom:3px}
-.field input,.field select,.field textarea{width:100%;background:var(--bg);border:1px solid var(--border2);color:var(--text);padding:6px 8px;font-size:12px;font-family:var(--mono);border-radius:3px;outline:none}
-.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--cyan)}
-.field textarea{resize:vertical;min-height:70px;line-height:1.5}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+        /* form */
+        .field {
+            margin-bottom: 9px
+        }
+        .field label {
+            display: block;
+            font-size: 9.5px;
+            font-family: var(--mono);
+            color: var(--dim);
+            letter-spacing: .05em;
+            margin-bottom: 3px
+        }
+        .field input,
+        .field select,
+        .field textarea {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border2);
+            color: var(--text);
+            padding: 6px 8px;
+            font-size: 12px;
+            font-family: var(--mono);
+            border-radius: 3px;
+            outline: none
+        }
+        .field input:focus,
+        .field select:focus,
+        .field textarea:focus {
+            border-color: var(--cyan)
+        }
+        .field textarea {
+            resize: vertical;
+            min-height: 70px;
+            line-height: 1.5
+        }
+        .row2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px
+        }
+        .row3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 6px
+        }
 
-/* buttons */
-.btn{display:block;width:100%;padding:7px 12px;font-size:11px;font-family:var(--mono);font-weight:700;letter-spacing:.05em;border:1px solid var(--border2);border-radius:3px;cursor:pointer;background:var(--panel2);color:var(--dim);transition:all .15s}
-.btn:hover:not(:disabled){border-color:var(--cyan2);color:var(--cyan)}
-.btn.primary{border-color:var(--cyan2);color:var(--cyan)}
-.btn.primary:hover:not(:disabled){background:var(--cyan2);color:#fff}
-.btn.danger{border-color:var(--red2);color:var(--red)}
-.btn:disabled{opacity:.4;cursor:default}
-.btn+.btn,.field+.btn{margin-top:8px}
+        /* buttons */
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 7px 12px;
+            font-size: 11px;
+            font-family: var(--mono);
+            font-weight: 700;
+            letter-spacing: .05em;
+            border: 1px solid var(--border2);
+            border-radius: 3px;
+            cursor: pointer;
+            background: var(--panel2);
+            color: var(--dim);
+            transition: all .15s
+        }
+        .btn:hover:not(:disabled) {
+            border-color: var(--cyan2);
+            color: var(--cyan)
+        }
+        .btn.primary {
+            border-color: var(--cyan2);
+            color: var(--cyan)
+        }
+        .btn.primary:hover:not(:disabled) {
+            background: var(--cyan2);
+            color: #fff
+        }
+        .btn.danger {
+            border-color: var(--red2);
+            color: var(--red)
+        }
+        .btn:disabled {
+            opacity: .4;
+            cursor: default
+        }
+        .btn+.btn,
+        .field+.btn {
+            margin-top: 8px
+        }
 
-/* status */
-.status-bar{padding:6px 9px;font-family:var(--mono);font-size:10.5px;border-radius:3px;border:1px solid var(--border2);color:var(--dim);margin-top:8px}
-.status-bar.pending{border-color:var(--amber2);color:var(--amber)}
-.status-bar.running{border-color:var(--cyan2);color:var(--cyan)}
-.status-bar.done{border-color:var(--green2);color:var(--green)}
-.status-bar.failed{border-color:var(--red2);color:var(--red)}
+        /* status */
+        .status-bar {
+            padding: 6px 9px;
+            font-family: var(--mono);
+            font-size: 10.5px;
+            border-radius: 3px;
+            border: 1px solid var(--border2);
+            color: var(--dim);
+            margin-top: 8px
+        }
+        .status-bar.pending {
+            border-color: var(--amber2);
+            color: var(--amber)
+        }
+        .status-bar.running {
+            border-color: var(--cyan2);
+            color: var(--cyan)
+        }
+        .status-bar.done {
+            border-color: var(--green2);
+            color: var(--green)
+        }
+        .status-bar.failed {
+            border-color: var(--red2);
+            color: var(--red)
+        }
 
-/* stats grids */
-.statgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
-.statgrid.two{grid-template-columns:repeat(2,1fr)}
-.statgrid.four{grid-template-columns:repeat(4,1fr)}
-.stat{background:var(--panel2);border:1px solid var(--border);border-radius:3px;padding:8px 10px}
-.stat .v{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--cyan)}
-.stat .v.red{color:var(--red)}.stat .v.amber{color:var(--amber)}.stat .v.green{color:var(--green)}
-.stat .l{font-size:9px;color:var(--dim);margin-top:3px;letter-spacing:.04em}
+        /* stats grids */
+        .statgrid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            margin-top: 10px
+        }
+        .statgrid.two {
+            grid-template-columns: repeat(2, 1fr)
+        }
+        .statgrid.four {
+            grid-template-columns: repeat(4, 1fr)
+        }
+        .stat {
+            background: var(--panel2);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 8px 10px
+        }
+        .stat .v {
+            font-family: var(--mono);
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--cyan)
+        }
+        .stat .v.red {
+            color: var(--red)
+        }
+        .stat .v.amber {
+            color: var(--amber)
+        }
+        .stat .v.green {
+            color: var(--green)
+        }
+        .stat .l {
+            font-size: 9px;
+            color: var(--dim);
+            margin-top: 3px;
+            letter-spacing: .04em
+        }
 
-/* section headers */
-.sh{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--dim);margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+        /* section headers */
+        .sh {
+            font-size: 9.5px;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            font-weight: 700;
+            color: var(--dim);
+            margin: 14px 0 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--border)
+        }
 
-/* layer controls */
-.lc-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.lc-tog{width:28px;height:14px;border-radius:7px;background:var(--border2);cursor:pointer;position:relative;transition:background .2s}
-.lc-tog.on{background:var(--cyan2)}
-.lc-tog::after{content:'';position:absolute;width:10px;height:10px;border-radius:50%;background:var(--dim);top:2px;left:2px;transition:left .2s}
-.lc-tog.on::after{background:var(--cyan);left:16px}
-.lc-label{font-size:11px;flex:1}
-.lc-count{font-family:var(--mono);font-size:10px;color:var(--dim)}
+        /* layer controls */
+        .lc-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px
+        }
+        .lc-tog {
+            width: 28px;
+            height: 14px;
+            border-radius: 7px;
+            background: var(--border2);
+            cursor: pointer;
+            position: relative;
+            transition: background .2s
+        }
+        .lc-tog.on {
+            background: var(--cyan2)
+        }
+        .lc-tog::after {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--dim);
+            top: 2px;
+            left: 2px;
+            transition: left .2s
+        }
+        .lc-tog.on::after {
+            background: var(--cyan);
+            left: 16px
+        }
+        .lc-label {
+            font-size: 11px;
+            flex: 1
+        }
+        .lc-count {
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--dim)
+        }
 
-/* connector alert */
-.conn-alert{background:var(--amber2);border:1px solid var(--amber);border-radius:3px;padding:8px 10px;font-size:10.5px;color:var(--amber);margin-top:8px;line-height:1.5}
+        /* connector alert */
+        .conn-alert {
+            background: var(--amber2);
+            border: 1px solid var(--amber);
+            border-radius: 3px;
+            padding: 8px 10px;
+            font-size: 10.5px;
+            color: var(--amber);
+            margin-top: 8px;
+            line-height: 1.5
+        }
 
-/* events panel */
-.event-item{background:var(--panel2);border:1px solid var(--border);border-radius:3px;padding:8px 10px;margin-bottom:6px;position:relative}
-.event-item .ev-type{font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--dim);text-transform:uppercase}
-.event-item .ev-detail{font-size:11px;color:var(--text);margin-top:2px}
-.event-item .ev-rm{position:absolute;top:6px;right:8px;font-size:10px;color:var(--red);cursor:pointer;font-family:var(--mono)}
-.ev-badge{display:inline-block;padding:1px 5px;border-radius:2px;font-size:9px;font-family:var(--mono);font-weight:700;margin-right:4px}
-.ev-badge.leakage{background:var(--red2);color:var(--red)}
-.ev-badge.fault{background:var(--amber2);color:var(--amber)}
-.ev-badge.actuator{background:var(--green2);color:var(--green)}
-.ev-badge.uncertainty{background:var(--cyan2);color:var(--cyan)}
+        /* events panel */
+        .event-item {
+            background: var(--panel2);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            position: relative
+        }
+        .event-item .ev-type {
+            font-family: var(--mono);
+            font-size: 9px;
+            letter-spacing: .06em;
+            color: var(--dim);
+            text-transform: uppercase
+        }
+        .event-item .ev-detail {
+            font-size: 11px;
+            color: var(--text);
+            margin-top: 2px
+        }
+        .event-item .ev-rm {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            font-size: 10px;
+            color: var(--red);
+            cursor: pointer;
+            font-family: var(--mono)
+        }
+        .ev-badge {
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 2px;
+            font-size: 9px;
+            font-family: var(--mono);
+            font-weight: 700;
+            margin-right: 4px
+        }
+        .ev-badge.leakage {
+            background: var(--red2);
+            color: var(--red)
+        }
+        .ev-badge.fault {
+            background: var(--amber2);
+            color: var(--amber)
+        }
+        .ev-badge.actuator {
+            background: var(--green2);
+            color: var(--green)
+        }
+        .ev-badge.uncertainty {
+            background: var(--cyan2);
+            color: var(--cyan)
+        }
 
-/* risk list */
-.risk-item{padding:8px 10px;background:var(--panel2);border:1px solid var(--border);border-radius:3px;margin-bottom:5px;cursor:pointer;transition:border-color .15s}
-.risk-item:hover{border-color:var(--cyan2)}
-.ri-hd{display:flex;align-items:center;gap:6px;margin-bottom:3px}
-.ri-id{font-family:var(--mono);font-size:11px}
-.rbadge{padding:2px 6px;border-radius:2px;font-size:9px;font-family:var(--mono);font-weight:700}
-.rbadge.critical{background:var(--red2);color:var(--red)}
-.rbadge.high{background:var(--amber2);color:var(--amber)}
-.rbadge.medium{background:var(--purple);opacity:.7;color:#fff}
-.ri-drivers{font-size:10px;color:var(--dim);margin-bottom:4px}
-.rbar{height:3px;border-radius:2px;background:var(--border2)}
-.rbar-fill{height:3px;border-radius:2px}
+        /* risk list */
+        .risk-item {
+            padding: 8px 10px;
+            background: var(--panel2);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            margin-bottom: 5px;
+            cursor: pointer;
+            transition: border-color .15s
+        }
+        .risk-item:hover {
+            border-color: var(--cyan2)
+        }
+        .ri-hd {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 3px
+        }
+        .ri-id {
+            font-family: var(--mono);
+            font-size: 11px
+        }
+        .rbadge {
+            padding: 2px 6px;
+            border-radius: 2px;
+            font-size: 9px;
+            font-family: var(--mono);
+            font-weight: 700
+        }
+        .rbadge.critical {
+            background: var(--red2);
+            color: var(--red)
+        }
+        .rbadge.high {
+            background: var(--amber2);
+            color: var(--amber)
+        }
+        .rbadge.medium {
+            background: var(--purple);
+            opacity: .7;
+            color: #fff
+        }
+        .ri-drivers {
+            font-size: 10px;
+            color: var(--dim);
+            margin-bottom: 4px
+        }
+        .rbar {
+            height: 3px;
+            border-radius: 2px;
+            background: var(--border2)
+        }
+        .rbar-fill {
+            height: 3px;
+            border-radius: 2px
+        }
 
-/* pressure zones */
-.pz-row{display:flex;align-items:center;gap:8px;margin-bottom:2px;font-size:11px}
-.pz-dot{width:8px;height:8px;border-radius:50%;flex:none}
-.pz-bar{height:4px;border-radius:2px;background:var(--border2);margin-bottom:8px}
-.pz-fill{height:4px;border-radius:2px}
+        /* pressure zones */
+        .pz-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 2px;
+            font-size: 11px
+        }
+        .pz-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex: none
+        }
+        .pz-bar {
+            height: 4px;
+            border-radius: 2px;
+            background: var(--border2);
+            margin-bottom: 8px
+        }
+        .pz-fill {
+            height: 4px;
+            border-radius: 2px
+        }
 
-/* map */
-#map{flex:1;position:relative}
-.map-toolbar{position:absolute;top:10px;left:10px;z-index:800;display:flex;gap:6px;flex-wrap:wrap}
-.mb{padding:5px 10px;background:rgba(9,13,16,.88);backdrop-filter:blur(6px);border:1px solid var(--border2);border-radius:3px;font-size:9.5px;font-family:var(--mono);font-weight:700;letter-spacing:.05em;color:var(--dim);cursor:pointer;transition:all .15s}
-.mb:hover,.mb.active{border-color:var(--cyan2);color:var(--cyan)}
-.map-legend{position:absolute;bottom:20px;left:10px;z-index:800;background:rgba(9,13,16,.88);backdrop-filter:blur(6px);border:1px solid var(--border2);border-radius:3px;padding:10px 12px;font-size:10px}
-.leg-row{display:flex;align-items:center;gap:8px;margin-bottom:4px;color:var(--dim)}
-.leg-dot{width:8px;height:8px;border-radius:50%}
-.leg-line{width:20px;height:2px}
-.info-tt{background:var(--panel);border:1px solid var(--border2);border-radius:3px;padding:5px 8px;font-size:11px;line-height:1.5}
+        /* map */
+        #map {
+            flex: 1;
+            position: relative
+        }
+        .map-toolbar {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 800;
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap
+        }
+        .mb {
+            padding: 5px 10px;
+            background: rgba(9, 13, 16, .88);
+            backdrop-filter: blur(6px);
+            border: 1px solid var(--border2);
+            border-radius: 3px;
+            font-size: 9.5px;
+            font-family: var(--mono);
+            font-weight: 700;
+            letter-spacing: .05em;
+            color: var(--dim);
+            cursor: pointer;
+            transition: all .15s
+        }
+        .mb:hover,
+        .mb.active {
+            border-color: var(--cyan2);
+            color: var(--cyan)
+        }
+        .map-legend {
+            position: absolute;
+            bottom: 20px;
+            left: 10px;
+            z-index: 800;
+            background: rgba(9, 13, 16, .88);
+            backdrop-filter: blur(6px);
+            border: 1px solid var(--border2);
+            border-radius: 3px;
+            padding: 10px 12px;
+            font-size: 10px
+        }
+        .leg-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+            color: var(--dim)
+        }
+        .leg-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%
+        }
+        .leg-line {
+            width: 20px;
+            height: 2px
+        }
+        .info-tt {
+            background: var(--panel);
+            border: 1px solid var(--border2);
+            border-radius: 3px;
+            padding: 5px 8px;
+            font-size: 11px;
+            line-height: 1.5
+        }
 
-/* tank chart */
-#tank-chart-wrap{margin-top:8px}
-canvas{width:100%;display:block}
+        /* tank chart */
+        #tank-chart-wrap {
+            margin-top: 8px
+        }
+        canvas {
+            width: 100%;
+            display: block
+        }
 
-/* report modal */
-#report-modal-overlay{display:none;position:fixed;inset:0;z-index:2000;background:rgba(5,8,10,.72);backdrop-filter:blur(2px);align-items:center;justify-content:center}
-#report-modal-overlay.open{display:flex}
-#report-modal{width:min(760px,90vw);max-height:82vh;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--border2);border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
-#report-modal-head{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.06em;color:var(--cyan)}
-#report-modal-close{cursor:pointer;color:var(--dim);font-size:13px;padding:2px 6px;border-radius:3px}
-#report-modal-close:hover{color:var(--red);background:var(--panel2)}
-#report-raw{flex:1;overflow-y:auto;margin:0;padding:14px;font-family:var(--mono);font-size:10.5px;line-height:1.5;white-space:pre-wrap;color:var(--text)}
-</style>
+        /* ── REPORT MODAL ── */
+        #report-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            background: rgba(5, 8, 10, .72);
+            backdrop-filter: blur(2px);
+            align-items: center;
+            justify-content: center
+        }
+        #report-modal-overlay.open {
+            display: flex
+        }
+        #report-modal {
+            width: min(760px, 90vw);
+            max-height: 82vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--panel);
+            border: 1px solid var(--border2);
+            border-radius: 6px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .5)
+        }
+        #report-modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--mono);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .06em;
+            color: var(--cyan)
+        }
+        #report-modal-close {
+            cursor: pointer;
+            color: var(--dim);
+            font-size: 13px;
+            padding: 2px 6px;
+            border-radius: 3px
+        }
+        #report-modal-close:hover {
+            color: var(--red);
+            background: var(--panel2)
+        }
+        #report-raw {
+            flex: 1;
+            overflow-y: auto;
+            margin: 0;
+            padding: 14px;
+            font-family: var(--mono);
+            font-size: 10.5px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            color: var(--text)
+        }
+
+        /* ── CHART MODAL (larger) ── */
+        #chart-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 2100;
+            background: rgba(5, 8, 10, .78);
+            backdrop-filter: blur(3px);
+            align-items: center;
+            justify-content: center
+        }
+        #chart-modal-overlay.open {
+            display: flex
+        }
+        #chart-modal {
+            width: min(95vw, 1200px);
+            max-height: 95vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--panel);
+            border: 1px solid var(--border2);
+            border-radius: 6px;
+            box-shadow: 0 24px 72px rgba(0, 0, 0, .6);
+            overflow: hidden
+        }
+        #chart-modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--mono);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .06em;
+            color: var(--cyan);
+            flex-shrink: 0
+        }
+        #chart-modal-close {
+            cursor: pointer;
+            color: var(--dim);
+            font-size: 15px;
+            padding: 2px 8px;
+            border-radius: 3px;
+            transition: all .15s
+        }
+        #chart-modal-close:hover {
+            color: var(--red);
+            background: var(--panel2)
+        }
+        #chart-modal-body {
+            flex: 1;
+            overflow: auto;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg);
+            min-height: 400px;
+            max-height: 85vh;
+        }
+        #chart-modal-body img {
+            width: 100%;
+            height: auto;
+            max-height: 100%;
+            object-fit: contain;
+            border-radius: 3px;
+            border: 1px solid var(--border);
+            background: #060c10
+        }
+        #chart-modal-body .chart-placeholder {
+            color: var(--faint);
+            font-family: var(--mono);
+            font-size: 14px;
+            text-align: center
+        }
+
+        .err {
+            color: var(--red);
+            font-size: 10.5px;
+            margin-top: 6px;
+            font-family: var(--mono);
+            display: none
+        }
+
+        /* responsive tweaks */
+        @media (max-width: 760px) {
+            #sidebar {
+                width: 100%;
+                min-width: unset;
+                max-height: 50vh;
+                border-right: none;
+                border-bottom: 1px solid var(--border)
+            }
+            #app {
+                flex-direction: column
+            }
+            #chart-modal {
+                width: 96vw;
+                max-height: 92vh
+            }
+            #report-modal {
+                width: 96vw;
+                max-height: 92vh
+            }
+            #chart-modal-body {
+                min-height: 250px;
+                max-height: 75vh;
+            }
+        }
+    </style>
 </head>
 <body>
-<div id="app">
-<aside id="sidebar">
-  <div id="sb-head">
-    <h1>DUWASA · DMA HYDRAULIC EXPLORER</h1>
-    <p>EPyT-Flow v0.17 · EPANET extended-period simulation</p>
-  </div>
-  <div id="tabs">
-    <div class="tab active" data-tab="setup">SETUP</div>
-    <div class="tab" data-tab="layers">LAYERS</div>
-    <div class="tab" data-tab="simulate">SIMULATE</div>
-    <div class="tab" data-tab="events">EVENTS</div>
-    <div class="tab" data-tab="leakage">LEAKAGE</div>
-    <div class="tab" data-tab="tanks">TANKS</div>
-    <div class="tab" data-tab="charts">CHARTS</div>
-    <div class="tab" data-tab="report">REPORT</div>
-  </div>
-  <div id="sb-body">
+    <div id="app">
+        <aside id="sidebar">
+            <div id="sb-head">
+                <h1>DUWASA · DMA HYDRAULIC EXPLORER</h1>
+                <p>EPyT-Flow v0.17 · EPANET extended-period simulation</p>
+            </div>
+            <div id="tabs">
+                <div class="tab active" data-tab="setup">SETUP</div>
+                <div class="tab" data-tab="layers">LAYERS</div>
+                <div class="tab" data-tab="simulate">SIMULATE</div>
+                <div class="tab" data-tab="events">EVENTS</div>
+                <div class="tab" data-tab="leakage">LEAKAGE</div>
+                <div class="tab" data-tab="tanks">TANKS</div>
+                <div class="tab" data-tab="charts">CHARTS</div>
+                <div class="tab" data-tab="report">REPORT</div>
+            </div>
+            <div id="sb-body">
 
-    <!-- ── SETUP ── -->
-    <div class="tab-pane active" id="tab-setup">
-      <div class="field"><label>SERVICE URL</label><input id="api-base" value="http://localhost:8080"/></div>
-      <div class="field"><label>API KEY</label><input id="api-key" type="password" placeholder="X-API-Key"/></div>
-      <button class="btn primary" id="btn-connect">Connect to service</button>
-      <div class="field" style="margin-top:12px"><label>GPKG FILE</label>
-        <select id="file-select"><option>— connect first —</option></select>
-      </div>
-      <button class="btn" id="btn-load-layers" disabled>Load DMA onto map</button>
-      <div id="setup-stats" style="display:none">
-        <div class="statgrid" id="setup-statgrid"></div>
-        <div id="conn-alert" class="conn-alert" style="display:none"></div>
-      </div>
-      <div id="err-setup" class="err"></div>
-    </div>
+                <!-- ── SETUP ── -->
+                <div class="tab-pane active" id="tab-setup">
+                    <div class="field"><label>SERVICE URL</label><input id="api-base" value="http://localhost:8080" /></div>
+                    <div class="field"><label>API KEY</label><input id="api-key" type="password" placeholder="X-API-Key" /></div>
+                    <button class="btn primary" id="btn-connect">Connect to service</button>
+                    <div class="field" style="margin-top:12px"><label>GPKG FILE</label>
+                        <select id="file-select"><option>— connect first —</option></select>
+                    </div>
+                    <button class="btn" id="btn-load-layers" disabled>Load DMA onto map</button>
+                    <div id="setup-stats" style="display:none">
+                        <div class="statgrid" id="setup-statgrid"></div>
+                        <div id="conn-alert" class="conn-alert" style="display:none"></div>
+                    </div>
+                    <div id="err-setup" class="err"></div>
+                </div>
 
-    <!-- ── LAYERS ── -->
-    <div class="tab-pane" id="tab-layers">
-      <p class="sh">Visible layers</p>
-      <div id="layer-controls"><p style="color:var(--faint);font-size:11px">Load a DMA file first</p></div>
-    </div>
+                <!-- ── LAYERS ── -->
+                <div class="tab-pane" id="tab-layers">
+                    <p class="sh">Visible layers</p>
+                    <div id="layer-controls"><p style="color:var(--faint);font-size:11px">Load a DMA file first</p></div>
+                </div>
 
-    <!-- ── SIMULATE ── -->
-    <div class="tab-pane" id="tab-simulate">
-      <p class="sh">Simulation parameters</p>
-      <div class="row2">
-        <div class="field"><label>DURATION (hrs)</label><input type="number" id="sim-duration" value="24"/></div>
-        <div class="field"><label>TIME STEP (min)</label><input type="number" id="sim-timestep" value="60"/></div>
-      </div>
-      <div class="row2">
-        <div class="field"><label>BASE DEMAND (m³/h·node)</label><input type="number" id="sim-demand" value="0.011" step="0.001"/></div>
-        <div class="field"><label>LEAKAGE FRACTION</label><input type="number" id="sim-leakage" value="0.20" step="0.01"/></div>
-      </div>
-      <div class="field"><label>SCENARIO NAME</label><input id="sim-name" value="DMA baseline"/></div>
+                <!-- ── SIMULATE ── -->
+                <div class="tab-pane" id="tab-simulate">
+                    <p class="sh">Simulation parameters</p>
+                    <div class="row2">
+                        <div class="field"><label>DURATION (hrs)</label><input type="number" id="sim-duration" value="24" /></div>
+                        <div class="field"><label>TIME STEP (min)</label><input type="number" id="sim-timestep" value="60" /></div>
+                    </div>
+                    <div class="row2">
+                        <div class="field"><label>BASE DEMAND (m³/h·node)</label><input type="number" id="sim-demand" value="0.011" step="0.001" /></div>
+                        <div class="field"><label>LEAKAGE FRACTION</label><input type="number" id="sim-leakage" value="0.20" step="0.01" /></div>
+                    </div>
+                    <div class="field">
+                        <label>DEMAND MODEL</label>
+                        <select id="sim-demand-model">
+                            <option value="DDA" selected>DDA — demand-driven</option>
+                            <option value="PDA">PDA — pressure-driven</option>
+                        </select>
+                    </div>
+                    <div id="sim-pda-params" style="display:none">
+                        <div class="row2">
+                            <div class="field"><label>PMIN (m)</label><input type="number" id="sim-pda-pmin" value="0" step="0.1" min="0" /></div>
+                            <div class="field"><label>PREQ (m)</label><input type="number" id="sim-pda-preq" value="15" step="0.1" min="0.01" /></div>
+                        </div>
+                        <div class="field"><label>PRESSURE EXPONENT</label><input type="number" id="sim-pda-pexp" value="0.5" step="0.05" min="0.01" /></div>
+                    </div>
+                    <div class="field"><label>SCENARIO NAME</label><input id="sim-name" value="DMA baseline" /></div>
 
-      <div id="event-summary-bar" style="display:none;margin-bottom:8px">
-        <div style="background:var(--panel2);border:1px solid var(--border2);border-radius:3px;padding:7px 10px;font-size:10.5px;color:var(--dim)">
-          <span style="color:var(--text);font-family:var(--mono);font-weight:700">Advanced mode</span> —
-          <span id="esb-counts"></span>
-          <span style="color:var(--cyan);cursor:pointer;margin-left:8px;font-family:var(--mono)" onclick="switchTab('events')">[edit events →]</span>
+                    <div id="event-summary-bar" style="display:none;margin-bottom:8px">
+                        <div style="background:var(--panel2);border:1px solid var(--border2);border-radius:3px;padding:7px 10px;font-size:10.5px;color:var(--dim)">
+                            <span style="color:var(--text);font-family:var(--mono);font-weight:700">Advanced mode</span> —
+                            <span id="esb-counts"></span>
+                            <span style="color:var(--cyan);cursor:pointer;margin-left:8px;font-family:var(--mono)" onclick="switchTab('events')">[edit events →]</span>
+                        </div>
+                    </div>
+
+                    <button class="btn primary" id="btn-run-sim" disabled>Run simulation</button>
+                    <div id="sim-status" class="status-bar" style="display:none"></div>
+                    <div id="sim-summary" style="display:none">
+                        <div class="statgrid" id="sim-statgrid"></div>
+                        <div class="row2" style="margin-top:8px;gap:6px">
+                            <button class="btn" id="btn-load-leakage">Leakage analysis →</button>
+                            <button class="btn" id="btn-load-tanks">Tank volumes →</button>
+                        </div>
+                    </div>
+                    <div id="err-sim" class="err"></div>
+                </div>
+
+                <!-- ── EVENTS ── -->
+                <div class="tab-pane" id="tab-events">
+                    <p class="sh">Leakage events</p>
+                    <div id="ev-leakage-list"></div>
+                    <div class="row2" style="gap:6px">
+                        <div class="field"><label>PIPE ID</label><input id="ev-lk-pipe" placeholder="E_42" /></div>
+                        <div class="field"><label>TYPE</label>
+                            <select id="ev-lk-type"><option value="abrupt_leakage">Abrupt burst</option><option value="incipient_leakage">Incipient (gradual)</option></select>
+                        </div>
+                    </div>
+                    <div class="row3">
+                        <div class="field"><label>Ø (m)</label><input type="number" id="ev-lk-diam" value="0.015" step="0.001" /></div>
+                        <div class="field"><label>START (s)</label><input type="number" id="ev-lk-t0" value="0" /></div>
+                        <div class="field"><label>END (s)</label><input type="number" id="ev-lk-t1" value="86400" /></div>
+                    </div>
+                    <div id="ev-lk-peak-wrap" class="field" style="display:none"><label>PEAK TIME (s)</label><input type="number" id="ev-lk-peak" value="43200" /></div>
+                    <button class="btn" id="btn-add-leak" style="margin-bottom:12px">+ Add leakage event</button>
+
+                    <p class="sh">Sensor faults</p>
+                    <div id="ev-fault-list"></div>
+                    <div class="row2" style="gap:6px">
+                        <div class="field"><label>SENSOR ID</label><input id="ev-sf-id" placeholder="N_12" /></div>
+                        <div class="field"><label>SENSOR TYPE</label>
+                            <select id="ev-sf-stype"><option value="0">Pressure</option><option value="1">Flow</option></select>
+                        </div>
+                    </div>
+                    <div class="field"><label>FAULT TYPE</label>
+                        <select id="ev-sf-ftype">
+                            <option value="gaussian">Gaussian noise</option>
+                            <option value="constant">Constant shift</option>
+                            <option value="drift">Linear drift</option>
+                            <option value="percentage">Percentage error</option>
+                            <option value="stuck_zero">Stuck at zero</option>
+                        </select>
+                    </div>
+                    <div class="row2" style="gap:6px">
+                        <div class="field"><label>PARAM (std / shift / coef)</label><input type="number" id="ev-sf-param" value="1.0" step="0.1" /></div>
+                        <div class="field"><label>START (s) / END (s)</label>
+                            <input type="number" id="ev-sf-t0" value="3600" placeholder="start s" style="margin-bottom:4px" />
+                            <input type="number" id="ev-sf-t1" value="72000" placeholder="end s" />
+                        </div>
+                    </div>
+                    <button class="btn" id="btn-add-fault" style="margin-bottom:12px">+ Add sensor fault</button>
+
+                    <p class="sh">Actuator events</p>
+                    <div id="ev-act-list"></div>
+                    <div class="row2" style="gap:6px">
+                        <div class="field"><label>EVENT TYPE</label>
+                            <select id="ev-ae-type"><option value="valve_state">Valve state</option><option value="pump_state">Pump state</option><option value="pump_speed">Pump speed</option></select>
+                        </div>
+                        <div class="field"><label>ELEMENT ID</label><input id="ev-ae-id" placeholder="valve_id or pump_id" /></div>
+                    </div>
+                    <div class="row3">
+                        <div class="field"><label>STATE / SPEED</label><input id="ev-ae-state" placeholder="open|closed|on|off|1.0" /></div>
+                        <div class="field"><label>START (s)</label><input type="number" id="ev-ae-t0" value="0" /></div>
+                        <div class="field"><label>END (s)</label><input type="number" id="ev-ae-t1" value="86400" /></div>
+                    </div>
+                    <button class="btn" id="btn-add-act" style="margin-bottom:12px">+ Add actuator event</button>
+
+                    <p class="sh">Model uncertainties</p>
+                    <div class="row2" style="gap:6px">
+                        <div class="field"><label>DEMAND ± %</label><input type="number" id="unc-demand" value="0" step="1" min="0" max="50" /></div>
+                        <div class="field"><label>ROUGHNESS ± %</label><input type="number" id="unc-rough" value="0" step="1" min="0" max="30" /></div>
+                    </div>
+                    <div class="row3">
+                        <div class="field"><label>PRESSURE NOISE σ (m)</label><input type="number" id="unc-pnoise" value="0" step="0.1" min="0" /></div>
+                        <div class="field"><label>FLOW NOISE σ (m³/h)</label><input type="number" id="unc-fnoise" value="0" step="0.1" min="0" /></div>
+                        <div class="field"><label>SEED</label><input type="number" id="unc-seed" value="42" /></div>
+                    </div>
+                    <button class="btn" id="btn-clear-events" style="margin-top:4px">Clear all events</button>
+                </div>
+
+                <!-- ── LEAKAGE ── -->
+                <div class="tab-pane" id="tab-leakage">
+                    <p style="color:var(--faint);font-size:11px" id="leakage-ph">Run a simulation first, then click "Leakage analysis →"</p>
+                    <div id="leakage-content" style="display:none">
+                        <p class="sh">NON-REVENUE WATER</p>
+                        <div class="statgrid" id="nrw-grid"></div>
+                        <p class="sh">PRESSURE ZONES</p>
+                        <div id="pzones"></div>
+                        <p class="sh">FLOW BALANCE (hourly)</p>
+                        <canvas id="balance-chart" height="130"></canvas>
+                        <p class="sh">HIGH-RISK PIPES (top 20)</p>
+                        <div id="risk-list"></div>
+                        <div id="leakage-warnings"></div>
+                    </div>
+                </div>
+
+                <!-- ── TANKS ── -->
+                <div class="tab-pane" id="tab-tanks">
+                    <p style="color:var(--faint);font-size:11px" id="tanks-ph">Run a simulation first, then click "Tank volumes →"</p>
+                    <div id="tanks-content" style="display:none">
+                        <p class="sh">TANK WATER VOLUMES</p>
+                        <div id="tank-panels"></div>
+                    </div>
+                </div>
+
+                <!-- ── CHARTS ── -->
+                <div class="tab-pane" id="tab-charts">
+                    <p style="color:var(--faint);font-size:11px" id="charts-ph">Run a simulation first to generate charts.</p>
+                    <div id="charts-content" style="display:none">
+                        <p class="sh">NODE PRESSURE OVER TIME</p>
+                        <div class="field"><label>NODE IDS (comma-separated, blank = all)</label><input id="chart-node-ids" placeholder="13,16,22,30" /></div>
+                        <button class="btn" id="btn-plot-pressure">Generate pressure chart</button>
+
+                        <p class="sh" style="margin-top:16px">LINK FLOW RATE OVER TIME</p>
+                        <div class="field"><label>LINK IDS (comma-separated, blank = all)</label><input id="chart-link-ids" placeholder="1,2" /></div>
+                        <button class="btn" id="btn-plot-flow">Generate flow chart</button>
+
+                        <div id="err-charts" class="err"></div>
+                    </div>
+                </div>
+
+                <!-- ── REPORT ── -->
+                <div class="tab-pane" id="tab-report">
+                    <p style="color:var(--faint);font-size:11px" id="report-ph">Run a simulation first, then load the EPANET .rpt report.</p>
+                    <div id="report-content" style="display:none">
+                        <p class="sh">EPANET FLOW BALANCE</p>
+                        <div class="statgrid" id="report-nrw-grid"></div>
+                        <div class="row2" style="margin-top:8px;gap:6px">
+                            <button class="btn" id="btn-load-report">View full .rpt</button>
+                            <button class="btn" id="btn-download-report">Download .rpt</button>
+                        </div>
+                        <div id="report-warnings" style="margin-top:8px"></div>
+                    </div>
+                    <div id="err-report" class="err"></div>
+                </div>
+
+            </div>
+        </aside>
+
+        <!-- ── REPORT MODAL ── -->
+        <div id="report-modal-overlay">
+            <div id="report-modal">
+                <div id="report-modal-head">
+                    <span>EPANET .RPT REPORT</span>
+                    <span id="report-modal-close" title="Close">✕</span>
+                </div>
+                <pre id="report-raw"></pre>
+            </div>
         </div>
-      </div>
 
-      <button class="btn primary" id="btn-run-sim" disabled>Run simulation</button>
-      <div id="sim-status" class="status-bar" style="display:none"></div>
-      <div id="sim-summary" style="display:none">
-        <div class="statgrid" id="sim-statgrid"></div>
-        <div class="row2" style="margin-top:8px;gap:6px">
-          <button class="btn" id="btn-load-leakage">Leakage analysis →</button>
-          <button class="btn" id="btn-load-tanks">Tank volumes →</button>
+        <!-- ── CHART MODAL (larger) ── -->
+        <div id="chart-modal-overlay">
+            <div id="chart-modal">
+                <div id="chart-modal-head">
+                    <span id="chart-modal-title">📊 CHART</span>
+                    <span id="chart-modal-close" title="Close">✕</span>
+                </div>
+                <div id="chart-modal-body">
+                    <div class="chart-placeholder">Loading chart…</div>
+                </div>
+            </div>
         </div>
-      </div>
-      <div id="err-sim" class="err"></div>
+
+        <main id="map" style="position:relative">
+            <div class="map-toolbar" id="map-toolbar"></div>
+            <div class="map-legend" id="map-legend" style="display:none">
+                <div class="leg-row"><div class="leg-line" style="background:var(--cyan)"></div>Pipes</div>
+                <div class="leg-row"><div class="leg-dot" style="background:#3dbf72"></div>Borehole / source</div>
+                <div class="leg-row"><div class="leg-dot" style="background:#50a0d8"></div>Storage tank</div>
+                <div class="leg-row"><div class="leg-dot" style="background:#e09a2a"></div>Valve</div>
+                <div class="leg-row"><div class="leg-dot" style="background:#c070e0"></div>Bulk meter</div>
+                <div class="leg-row"><div class="leg-line" style="background:var(--purple);border-bottom:2px dashed var(--purple)"></div>Synthetic connector</div>
+                <div class="leg-row"><div class="leg-dot" style="background:var(--red)"></div>Critical leakage risk</div>
+                <div class="leg-row"><div class="leg-dot" style="background:var(--amber)"></div>High / medium risk</div>
+                <div class="leg-row"><div class="leg-dot" style="background:var(--green)"></div>Low pressure (&lt;7 m)</div>
+            </div>
+        </main>
     </div>
 
-    <!-- ── EVENTS (EPyT-Flow) ── -->
-    <div class="tab-pane" id="tab-events">
-      <p class="sh">Leakage events</p>
-      <div id="ev-leakage-list"></div>
-      <div class="row2" style="gap:6px">
-        <div class="field"><label>PIPE ID</label><input id="ev-lk-pipe" placeholder="E_42"/></div>
-        <div class="field"><label>TYPE</label>
-          <select id="ev-lk-type"><option value="abrupt_leakage">Abrupt burst</option><option value="incipient_leakage">Incipient (gradual)</option></select>
-        </div>
-      </div>
-      <div class="row3">
-        <div class="field"><label>Ø (m)</label><input type="number" id="ev-lk-diam" value="0.015" step="0.001"/></div>
-        <div class="field"><label>START (s)</label><input type="number" id="ev-lk-t0" value="0"/></div>
-        <div class="field"><label>END (s)</label><input type="number" id="ev-lk-t1" value="86400"/></div>
-      </div>
-      <div id="ev-lk-peak-wrap" class="field" style="display:none"><label>PEAK TIME (s)</label><input type="number" id="ev-lk-peak" value="43200"/></div>
-      <button class="btn" id="btn-add-leak" style="margin-bottom:12px">+ Add leakage event</button>
-
-      <p class="sh">Sensor faults</p>
-      <div id="ev-fault-list"></div>
-      <div class="row2" style="gap:6px">
-        <div class="field"><label>SENSOR ID</label><input id="ev-sf-id" placeholder="N_12"/></div>
-        <div class="field"><label>SENSOR TYPE</label>
-          <select id="ev-sf-stype"><option value="0">Pressure</option><option value="1">Flow</option></select>
-        </div>
-      </div>
-      <div class="field"><label>FAULT TYPE</label>
-        <select id="ev-sf-ftype">
-          <option value="gaussian">Gaussian noise</option>
-          <option value="constant">Constant shift</option>
-          <option value="drift">Linear drift</option>
-          <option value="percentage">Percentage error</option>
-          <option value="stuck_zero">Stuck at zero</option>
-        </select>
-      </div>
-      <div class="row2" style="gap:6px">
-        <div class="field"><label>PARAM (std / shift / coef)</label><input type="number" id="ev-sf-param" value="1.0" step="0.1"/></div>
-        <div class="field"><label>START (s) / END (s)</label>
-          <input type="number" id="ev-sf-t0" value="3600" placeholder="start s" style="margin-bottom:4px"/>
-          <input type="number" id="ev-sf-t1" value="72000" placeholder="end s"/>
-        </div>
-      </div>
-      <button class="btn" id="btn-add-fault" style="margin-bottom:12px">+ Add sensor fault</button>
-
-      <p class="sh">Actuator events</p>
-      <div id="ev-act-list"></div>
-      <div class="row2" style="gap:6px">
-        <div class="field"><label>EVENT TYPE</label>
-          <select id="ev-ae-type"><option value="valve_state">Valve state</option><option value="pump_state">Pump state</option><option value="pump_speed">Pump speed</option></select>
-        </div>
-        <div class="field"><label>ELEMENT ID</label><input id="ev-ae-id" placeholder="valve_id or pump_id"/></div>
-      </div>
-      <div class="row3">
-        <div class="field"><label>STATE / SPEED</label><input id="ev-ae-state" placeholder="open|closed|on|off|1.0"/></div>
-        <div class="field"><label>START (s)</label><input type="number" id="ev-ae-t0" value="0"/></div>
-        <div class="field"><label>END (s)</label><input type="number" id="ev-ae-t1" value="86400"/></div>
-      </div>
-      <button class="btn" id="btn-add-act" style="margin-bottom:12px">+ Add actuator event</button>
-
-      <p class="sh">Model uncertainties</p>
-      <div class="row2" style="gap:6px">
-        <div class="field"><label>DEMAND ± %</label><input type="number" id="unc-demand" value="0" step="1" min="0" max="50"/></div>
-        <div class="field"><label>ROUGHNESS ± %</label><input type="number" id="unc-rough" value="0" step="1" min="0" max="30"/></div>
-      </div>
-      <div class="row3">
-        <div class="field"><label>PRESSURE NOISE σ (m)</label><input type="number" id="unc-pnoise" value="0" step="0.1" min="0"/></div>
-        <div class="field"><label>FLOW NOISE σ (m³/h)</label><input type="number" id="unc-fnoise" value="0" step="0.1" min="0"/></div>
-        <div class="field"><label>SEED</label><input type="number" id="unc-seed" value="42"/></div>
-      </div>
-      <button class="btn" id="btn-clear-events" style="margin-top:4px">Clear all events</button>
-    </div>
-
-    <!-- ── LEAKAGE ── -->
-    <div class="tab-pane" id="tab-leakage">
-      <p style="color:var(--faint);font-size:11px" id="leakage-ph">Run a simulation first, then click "Leakage analysis →"</p>
-      <div id="leakage-content" style="display:none">
-        <p class="sh">NON-REVENUE WATER</p>
-        <div class="statgrid" id="nrw-grid"></div>
-        <p class="sh">PRESSURE ZONES</p>
-        <div id="pzones"></div>
-        <p class="sh">FLOW BALANCE (hourly)</p>
-        <canvas id="balance-chart" height="130"></canvas>
-        <p class="sh">HIGH-RISK PIPES (top 20)</p>
-        <div id="risk-list"></div>
-        <div id="leakage-warnings"></div>
-      </div>
-    </div>
-
-    <!-- ── TANKS ── -->
-    <div class="tab-pane" id="tab-tanks">
-      <p style="color:var(--faint);font-size:11px" id="tanks-ph">Run a simulation first, then click "Tank volumes →"</p>
-      <div id="tanks-content" style="display:none">
-        <p class="sh">TANK WATER VOLUMES</p>
-        <div id="tank-panels"></div>
-      </div>
-    </div>
-
-    <!-- ── CHARTS ── -->
-    <div class="tab-pane" id="tab-charts">
-      <p style="color:var(--faint);font-size:11px" id="charts-ph">Run a simulation first to generate charts.</p>
-      <div id="charts-content" style="display:none">
-        <p class="sh">NODE PRESSURE OVER TIME</p>
-        <div class="field"><label>NODE IDS (comma-separated, blank = all)</label><input id="chart-node-ids" placeholder="13,16,22,30"/></div>
-        <button class="btn" id="btn-plot-pressure">Generate pressure chart</button>
-        <div id="pressure-chart-wrap" style="margin-top:10px"></div>
-
-        <p class="sh" style="margin-top:16px">LINK FLOW RATE OVER TIME</p>
-        <div class="field"><label>LINK IDS (comma-separated, blank = all)</label><input id="chart-link-ids" placeholder="1,2"/></div>
-        <button class="btn" id="btn-plot-flow">Generate flow chart</button>
-        <div id="flow-chart-wrap" style="margin-top:10px"></div>
-
-        <div id="err-charts" class="err"></div>
-      </div>
-    </div>
-
-    <!-- ── REPORT ── -->
-    <div class="tab-pane" id="tab-report">
-      <p style="color:var(--faint);font-size:11px" id="report-ph">Run a simulation first, then load the EPANET .rpt report.</p>
-      <div id="report-content" style="display:none">
-        <p class="sh">EPANET FLOW BALANCE</p>
-        <div class="statgrid" id="report-nrw-grid"></div>
-        <div class="row2" style="margin-top:8px;gap:6px">
-          <button class="btn" id="btn-load-report">View full .rpt</button>
-          <button class="btn" id="btn-download-report">Download .rpt</button>
-        </div>
-        <div id="report-warnings" style="margin-top:8px"></div>
-      </div>
-      <div id="err-report" class="err"></div>
-    </div>
-
-  </div>
-</aside>
-
-<!-- ── REPORT MODAL (centered popup) ── -->
-<div id="report-modal-overlay">
-  <div id="report-modal">
-    <div id="report-modal-head">
-      <span>EPANET .RPT REPORT</span>
-      <span id="report-modal-close" title="Close">✕</span>
-    </div>
-    <pre id="report-raw"></pre>
-  </div>
-</div>
-
-<main id="map" style="position:relative">
-  <div class="map-toolbar" id="map-toolbar"></div>
-  <div class="map-legend" id="map-legend" style="display:none">
-    <div class="leg-row"><div class="leg-line" style="background:var(--cyan)"></div>Pipes</div>
-    <div class="leg-row"><div class="leg-dot" style="background:#3dbf72"></div>Borehole / source</div>
-    <div class="leg-row"><div class="leg-dot" style="background:#50a0d8"></div>Storage tank</div>
-    <div class="leg-row"><div class="leg-dot" style="background:#e09a2a"></div>Valve</div>
-    <div class="leg-row"><div class="leg-dot" style="background:#c070e0"></div>Bulk meter</div>
-    <div class="leg-row"><div class="leg-line" style="background:var(--purple);border-bottom:2px dashed var(--purple)"></div>Synthetic connector</div>
-    <div class="leg-row"><div class="leg-dot" style="background:var(--red)"></div>Critical leakage risk</div>
-    <div class="leg-row"><div class="leg-dot" style="background:var(--amber)"></div>High / medium risk</div>
-    <div class="leg-row"><div class="leg-dot" style="background:var(--green)"></div>Low pressure (&lt;7 m)</div>
-  </div>
-</main>
-</div>
-
-<style>
-.err{color:var(--red);font-size:10.5px;margin-top:6px;font-family:var(--mono);display:none}
-</style>
-
-<script>
-(function(){"use strict";
-
-// ── state ─────────────────────────────────────────────────────────────────────
-const S = {
-  apiBase:"http://localhost:8080", apiKey:"",
-  file:null, scenarioId:null, pollTimer:null,
-  layers:{}, connectorGJ:null, leakageData:null,
-  events:{ leakages:[], sensor_faults:[], actuator_events:[] },
-};
-
-// ── map ───────────────────────────────────────────────────────────────────────
-const map = L.map("map",{preferCanvas:true,zoomControl:false});
-map.fitBounds([[-11.8,29.3],[-0.9,40.5]]);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-  {attribution:"&copy; OSM &copy; CARTO",maxZoom:20,subdomains:"abcd"}).addTo(map);
-L.control.zoom({position:"topright"}).addTo(map);
-
-const LG = {};
-["boundary","pipes","connectors","sources","tanks","valves","bulk_meters",
- "sim_nodes","sim_pipes","hotspots"].forEach(n=>{ LG[n]=L.layerGroup().addTo(map); });
-
-// ── helpers ───────────────────────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
-const on = (id,ev,fn) => $(id)?.addEventListener(ev,fn);
-function showErr(id,msg){const e=$(id);e.textContent=msg||"";e.style.display=msg?"block":"none";}
-function setStatus(id,st,msg){const el=$(id);el.style.display="block";el.className="status-bar "+st.toLowerCase();el.textContent=`[${st}] ${msg||""}`;}
-function switchTab(name){
-  document.querySelectorAll(".tab-pane").forEach(p=>p.classList.toggle("active",p.id==="tab-"+name));
-  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===name));
-}
-document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click",()=>switchTab(t.dataset.tab)));
-
-async function api(path,opts={}){
-  const headers={"Content-Type":"application/json","X-API-Key":S.apiKey,...(opts.headers||{})};
-  const r=await fetch(S.apiBase.replace(/\/$/,"")+path,{...opts,headers});
-  if(!r.ok){const t=await r.text().catch(()=>"");throw new Error(`${r.status} ${r.statusText}: ${t.slice(0,120)}`);}
-  return r.json();
-}
-
-// ── SETUP ─────────────────────────────────────────────────────────────────────
-on("btn-connect","click",async()=>{
-  showErr("err-setup",null);
-  S.apiBase=$("api-base").value.trim();
-  S.apiKey =$("api-key").value.trim();
-  const sel=$("file-select");
-  sel.innerHTML="<option>⏳ loading…</option>";
-  sel.disabled=true;
-  $("btn-load-layers").disabled=true;
-  $("btn-run-sim").disabled=true;
-  try{
-    await fetch(S.apiBase+"/health");
-    const files=await api("/files");
-    // robustly extract filenames – handle both array of strings and array of objects
-    let fileList = [];
-    if (Array.isArray(files)) {
-      fileList = files.map(item => typeof item === 'string' ? item : (item.filename || item.name || '')).filter(Boolean);
-    } else {
-      // fallback: find any array property
-      for (const key of Object.keys(files)) {
-        if (Array.isArray(files[key])) {
-          fileList = files[key].map(item => typeof item === 'string' ? item : (item.filename || item.name || '')).filter(Boolean);
-          break;
+    <style>
+        .err {
+            color: var(--red);
+            font-size: 10.5px;
+            margin-top: 6px;
+            font-family: var(--mono);
+            display: none
         }
-      }
-    }
-    // filter for .gpkg (case insensitive)
-    fileList = fileList.filter(f => f && /\.gpkg$/i.test(f));
-    sel.innerHTML="";
-    if (fileList.length===0) {
-      sel.innerHTML='<option value="">— no GPKG files found —</option>';
-    } else {
-      fileList.forEach(f=>{
-        const o=document.createElement("option");
-        o.value=f; o.textContent=f;
-        sel.appendChild(o);
-      });
-      S.file=fileList[0];
-      $("btn-load-layers").disabled=false;
-      $("btn-run-sim").disabled=false;
-    }
-    sel.disabled=false;
-  }catch(e){showErr("err-setup","Connect failed: "+e.message); sel.innerHTML='<option value="">— error —</option>'; sel.disabled=false;}
-});
+    </style>
 
-on("btn-load-layers","click",async()=>{
-  showErr("err-setup",null);
-  S.file=$("file-select").value;
-  if(!S.file){showErr("err-setup","Select a GPKG file first.");return;}
-  try{
-    const d=await api(`/dma/${encodeURIComponent(S.file)}/layers`);
-    renderLayers(d);
-    buildLayerControls(d);
-    buildToolbar();
-    $("setup-stats").style.display="block";
-    $("setup-statgrid").innerHTML=`
-      <div class="stat"><div class="v">${d.stats.pipe_count}</div><div class="l">Pipes</div></div>
-      <div class="stat"><div class="v">${d.stats.source_count}</div><div class="l">Sources</div></div>
-      <div class="stat"><div class="v">${d.stats.tank_count}</div><div class="l">Tanks</div></div>
-      <div class="stat"><div class="v">${d.stats.valve_count}</div><div class="l">Valves</div></div>
-      <div class="stat"><div class="v">${d.stats.bulk_meter_count}</div><div class="l">Bulk meters</div></div>
-      <div class="stat"><div class="v">${(d.stats.total_pipe_length_m/1000).toFixed(1)}km</div><div class="l">Pipe length</div></div>`;
-    $("map-legend").style.display="block";
-    try{map.fitBounds(LG.pipes.getLayers()[0]?.getBounds()||LG.boundary.getLayers()[0]?.getBounds(),{padding:[24,24]});}catch(e){}
-    switchTab("layers");
-  }catch(e){showErr("err-setup",e.message);}
-});
+    <script>
+        (function() {
+            "use strict";
 
-function renderLayers(d){
-  Object.values(LG).forEach(lg=>lg.clearLayers());
-  // boundary
-  L.geoJSON(d.boundary,{style:()=>({color:var_("--cyan"),weight:1.5,fillOpacity:.04,opacity:.7})}).addTo(LG.boundary);
-  // pipes
-  L.geoJSON(d.pipes,{style:f=>({color:var_("--cyan"),weight:f.properties.diam_mm>100?2.5:1.5,opacity:.7}),
-    onEachFeature:(f,l)=>l.bindTooltip(`<div class="info-tt"><b>${f.properties.fid}</b><br>Ø${f.properties.diam_mm}mm C=${f.properties.hw_c} ${f.properties.length_m}m</div>`,{sticky:true})
-  }).addTo(LG.pipes);
-  // sources
-  d.sources.features.forEach(f=>{
-    if(!f.geometry)return;
-    const [lon,lat]=f.geometry.coordinates,p=f.properties;
-    L.circleMarker([lat,lon],{radius:7,color:var_("--bg"),weight:2,fillColor:"#3dbf72",fillOpacity:1})
-      .bindTooltip(`<div class="info-tt"><b>${p.name||p.fid}</b><br>Borehole · head ${p.total_head_m}m<br>Elev ${p.elev_m}m</div>`,{sticky:true})
-      .addTo(LG.sources);
-  });
-  // tanks
-  d.tanks.features.forEach(f=>{
-    if(!f.geometry)return;
-    const [lon,lat]=f.geometry.coordinates,p=f.properties;
-    L.circleMarker([lat,lon],{radius:7,color:var_("--bg"),weight:2,fillColor:"#50a0d8",fillOpacity:1})
-      .bindTooltip(`<div class="info-tt"><b>${p.name||p.fid}</b><br>Tank · ${p.cap_m3}m³<br>MaxLevel ${p.max_level_m}m</div>`,{sticky:true})
-      .addTo(LG.tanks);
-  });
-  // valves
-  d.valves.features.forEach(f=>{
-    if(!f.geometry)return;
-    const [lon,lat]=f.geometry.coordinates,p=f.properties;
-    L.circleMarker([lat,lon],{radius:4,color:var_("--bg"),weight:1,fillColor:"#e09a2a",fillOpacity:.9})
-      .bindTooltip(`<div class="info-tt">${p.fid} · ${p.valve_type||"Valve"}<br>Ø${p.diam_mm}mm</div>`,{sticky:true})
-      .addTo(LG.valves);
-  });
-  // bulk meters
-  d.bulk_meters.features.forEach(f=>{
-    if(!f.geometry)return;
-    const [lon,lat]=f.geometry.coordinates,p=f.properties;
-    L.circleMarker([lat,lon],{radius:6,color:var_("--bg"),weight:2,fillColor:"#c070e0",fillOpacity:1})
-      .bindTooltip(`<div class="info-tt"><b>${p.name||p.fid}</b><br>Bulk meter</div>`,{sticky:true})
-      .addTo(LG.bulk_meters);
-  });
-}
+            // ── state ──────────────────────────────────────────────────────────────
+            const S = {
+                apiBase: "http://localhost:8080",
+                apiKey: "",
+                file: null,
+                scenarioId: null,
+                pollTimer: null,
+                layers: {},
+                connectorGJ: null,
+                leakageData: null,
+                events: { leakages: [], sensor_faults: [], actuator_events: [] },
+                chartObjectURL: null, // for cleanup
+            };
 
-function var_(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
+            // ── map ────────────────────────────────────────────────────────────────
+            const map = L.map("map", { preferCanvas: true, zoomControl: false });
+            map.fitBounds([
+                [-11.8, 29.3],
+                [-0.9, 40.5]
+            ]);
+            L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", { attribution: "&copy; OSM &copy; CARTO",
+                    maxZoom: 20, subdomains: "abcd" })
+                .addTo(map);
+            L.control.zoom({ position: "topright" }).addTo(map);
 
-function buildLayerControls(d){
-  const layers=[
-    {key:"boundary",  label:"DMA boundary",     count:""},
-    {key:"pipes",     label:"Pipes",             count:d.stats.pipe_count},
-    {key:"sources",   label:"Boreholes / sources",count:d.stats.source_count},
-    {key:"tanks",     label:"Storage tanks",     count:d.stats.tank_count},
-    {key:"valves",    label:"Valves",            count:d.stats.valve_count},
-    {key:"bulk_meters",label:"Bulk meters",      count:d.stats.bulk_meter_count},
-    {key:"connectors",label:"Synthetic connectors",count:"—"},
-    {key:"sim_nodes", label:"Sim: node pressure",count:"—"},
-    {key:"hotspots",  label:"Risk hotspots",     count:"—"},
-  ];
-  $("layer-controls").innerHTML=layers.map(l=>`
-    <div class="lc-row">
-      <div class="lc-tog on" id="tog-${l.key}" onclick="togLayer('${l.key}',this)"></div>
-      <span class="lc-label">${l.label}</span>
-      <span class="lc-count" id="lc-${l.key}">${l.count}</span>
-    </div>`).join("");
-}
-function togLayer(k,el){
-  const on=!el.classList.contains("on");
-  el.classList.toggle("on",on);
-  if(on)map.addLayer(LG[k]);else map.removeLayer(LG[k]);
-}
-window.togLayer=togLayer;
+            const LG = {};
+            ["boundary", "pipes", "connectors", "sources", "tanks", "valves", "bulk_meters",
+                "sim_nodes", "sim_pipes", "hotspots"
+            ].forEach(n => { LG[n] = L.layerGroup().addTo(map); });
 
-function buildToolbar(){
-  $("map-toolbar").innerHTML=`
-    <div class="mb" id="mb-fit">FIT</div>
-    <div class="mb" id="mb-pipes">PIPES</div>
-    <div class="mb" id="mb-pressure">PRESSURE</div>
-    <div class="mb" id="mb-hotspots">RISK</div>`;
-  on("mb-fit","click",()=>{try{map.fitBounds(LG.pipes.getLayers()[0]?.getBounds()||LG.boundary.getLayers()[0]?.getBounds(),{padding:[20,20]});}catch(e){}});
-  on("mb-pipes","click",()=>switchMapView("pipes"));
-  on("mb-pressure","click",()=>switchMapView("pressure"));
-  on("mb-hotspots","click",()=>switchMapView("hotspots"));
-}
-function switchMapView(v){
-  document.querySelectorAll(".mb").forEach(b=>b.classList.remove("active"));
-  if(v==="pipes"){
-    $("mb-pipes").classList.add("active");
-    map.addLayer(LG.pipes);map.removeLayer(LG.sim_nodes);map.removeLayer(LG.hotspots);
-  }else if(v==="pressure"){
-    $("mb-pressure").classList.add("active");
-    map.removeLayer(LG.pipes);map.addLayer(LG.sim_nodes);map.removeLayer(LG.hotspots);
-  }else{
-    $("mb-hotspots").classList.add("active");
-    map.removeLayer(LG.pipes);map.removeLayer(LG.sim_nodes);map.addLayer(LG.hotspots);
-  }
-}
+            // ── helpers ────────────────────────────────────────────────────────────
+            const $ = id => document.getElementById(id);
+            const on = (id, ev, fn) => $(id)?.addEventListener(ev, fn);
 
-// ── EVENTS tab ────────────────────────────────────────────────────────────────
-on("ev-lk-type","change",function(){
-  $("ev-lk-peak-wrap").style.display=this.value==="incipient_leakage"?"block":"none";
-});
-on("btn-add-leak","click",()=>{
-  const pid=$("ev-lk-pipe").value.trim();
-  if(!pid){return;}
-  const type=$("ev-lk-type").value;
-  const ev={type,link_id:pid,diameter:parseFloat($("ev-lk-diam").value)||0.015,
-             start_time:parseInt($("ev-lk-t0").value)||0,end_time:parseInt($("ev-lk-t1").value)||86400};
-  if(type==="incipient_leakage") ev.peak_time=parseInt($("ev-lk-peak").value)||43200;
-  S.events.leakages.push(ev);
-  renderEventLists();updateEventSummary();
-});
-on("btn-add-fault","click",()=>{
-  const sid=$("ev-sf-id").value.trim();
-  if(!sid)return;
-  const ft=$("ev-sf-ftype").value;
-  const ev={type:"sensor_fault",fault_type:ft,sensor_id:sid,
-             sensor_type:parseInt($("ev-sf-stype").value),
-             start_time:parseInt($("ev-sf-t0").value)||0,
-             end_time:parseInt($("ev-sf-t1").value)||86400};
-  const p=parseFloat($("ev-sf-param").value)||1.0;
-  if(ft==="constant")ev.constant_shift=p;
-  else if(ft==="drift"||ft==="percentage")ev.coef=p;
-  else if(ft==="gaussian")ev.std=p;
-  S.events.sensor_faults.push(ev);
-  renderEventLists();updateEventSummary();
-});
-on("btn-add-act","click",()=>{
-  const etype=$("ev-ae-type").value;
-  const eid=$("ev-ae-id").value.trim();
-  if(!eid)return;
-  const state=$("ev-ae-state").value.trim();
-  const ev={type:etype,start_time:parseInt($("ev-ae-t0").value)||0,end_time:parseInt($("ev-ae-t1").value)||86400};
-  if(etype==="valve_state"){ev.valve_id=eid;ev.valve_state=state||"closed";}
-  else if(etype==="pump_state"){ev.pump_id=eid;ev.pump_state=state||"off";}
-  else{ev.pump_id=eid;ev.pump_speed=parseFloat(state)||1.0;}
-  S.events.actuator_events.push(ev);
-  renderEventLists();updateEventSummary();
-});
-on("btn-clear-events","click",()=>{
-  S.events={leakages:[],sensor_faults:[],actuator_events:[]};
-  renderEventLists();updateEventSummary();
-});
+            function showErr(id, msg) { const e = $(id);
+                e.textContent = msg || "";
+                e.style.display = msg ? "block" : "none"; }
 
-function renderEventLists(){
-  const render=(listId,items,badge,fmt)=>{
-    $(listId).innerHTML=items.map((ev,i)=>`
-      <div class="event-item">
-        <span class="ev-badge ${badge}">${badge.toUpperCase()}</span>
-        <span class="ev-rm" onclick="removeEvent('${listId}',${i})">✕</span>
-        <div class="ev-detail">${fmt(ev)}</div>
-      </div>`).join("")||`<p style="color:var(--faint);font-size:11px;margin-bottom:6px">No ${badge} events</p>`;
-  };
-  render("ev-leakage-list",S.events.leakages,"leakage",
-    e=>`${e.type==="abrupt_leakage"?"Abrupt burst":"Incipient"} · pipe <b>${e.link_id}</b> · Ø${e.diameter}m · t=[${e.start_time}s–${e.end_time}s]${e.peak_time?` peak@${e.peak_time}s`:""}`);
-  render("ev-fault-list",S.events.sensor_faults,"fault",
-    e=>`${e.fault_type} · sensor <b>${e.sensor_id}</b> (${e.sensor_type===0?"pressure":"flow"}) · t=[${e.start_time}s–${e.end_time}s]`);
-  render("ev-act-list",S.events.actuator_events,"actuator",
-    e=>`${e.type} · <b>${e.valve_id||e.pump_id}</b> → ${e.valve_state||e.pump_state||e.pump_speed} · t=[${e.start_time}s–${e.end_time}s]`);
-}
-function removeEvent(listId,idx){
-  const key=listId==="ev-leakage-list"?"leakages":listId==="ev-fault-list"?"sensor_faults":"actuator_events";
-  S.events[key].splice(idx,1);
-  renderEventLists();updateEventSummary();
-}
-window.removeEvent=removeEvent;
+            function setStatus(id, st, msg) { const el = $(id);
+                el.style.display = "block";
+                el.className = "status-bar " + st.toLowerCase();
+                el.textContent = `[${st}] ${msg || ""}`; }
 
-function updateEventSummary(){
-  const lk=S.events.leakages.length,sf=S.events.sensor_faults.length,ae=S.events.actuator_events.length;
-  const dp=parseFloat($("unc-demand").value)||0,rp=parseFloat($("unc-rough").value)||0;
-  const pn=parseFloat($("unc-pnoise").value)||0,fn=parseFloat($("unc-fnoise").value)||0;
-  const hasUnc=dp||rp||pn||fn;
-  const total=lk+sf+ae+(hasUnc?1:0);
-  const bar=$("event-summary-bar");
-  bar.style.display=total?"block":"none";
-  if(total){
-    const parts=[];
-    if(lk)parts.push(`${lk} leak${lk>1?"s":""}`);
-    if(sf)parts.push(`${sf} sensor fault${sf>1?"s":""}`);
-    if(ae)parts.push(`${ae} actuator event${ae>1?"s":""}`);
-    if(hasUnc)parts.push("uncertainties active");
-    $("esb-counts").textContent=parts.join(" · ");
-  }
-}
-["unc-demand","unc-rough","unc-pnoise","unc-fnoise"].forEach(id=>on(id,"input",updateEventSummary));
+            function switchTab(name) {
+                document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("active", p.id === "tab-" + name));
+                document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
+            }
+            window.switchTab = switchTab;
 
-// ── SIMULATE ──────────────────────────────────────────────────────────────────
-on("btn-run-sim","click",async()=>{
-  showErr("err-sim",null);
-  $("sim-summary").style.display="none";
-  if(!S.file){showErr("err-sim","Load a DMA file first.");return;}
-  const hasEvents=S.events.leakages.length||S.events.sensor_faults.length||S.events.actuator_events.length;
-  const dp=parseFloat($("unc-demand").value)||0;
-  const rp=parseFloat($("unc-rough").value)||0;
-  const pn=parseFloat($("unc-pnoise").value)||0;
-  const fn=parseFloat($("unc-fnoise").value)||0;
-  const hasUnc=dp||rp||pn||fn;
-  const isAdvanced=hasEvents||hasUnc;
+            document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => switchTab(t.dataset.tab)));
 
-  const base={
-    name:$("sim-name").value||"DMA run",
-    duration_hrs:parseInt($("sim-duration").value)||24,
-    time_step_min:parseInt($("sim-timestep").value)||60,
-    base_demand_m3h:parseFloat($("sim-demand").value)||0.011,
-    leakage_frac:parseFloat($("sim-leakage").value)||0.20,
-  };
+            async function api(path, opts = {}) {
+                const headers = { "Content-Type": "application/json", "X-API-Key": S.apiKey, ...(opts.headers || {}) };
+                const r = await fetch(S.apiBase.replace(/\/$/, "") + path, { ...opts, headers });
+                if (!r.ok) { const t = await r.text().catch(() => "");
+                    throw new Error(`${r.status} ${r.statusText}: ${t.slice(0,120)}`); }
+                return r.json();
+            }
 
-  let endpoint,body;
-  if(isAdvanced){
-    endpoint=`/dma/${encodeURIComponent(S.file)}/simulate/advanced`;
-    body={
-      ...base,
-      leakage_events:S.events.leakages,
-      sensor_faults:S.events.sensor_faults,
-      actuator_events:S.events.actuator_events,
-      model_uncertainty:(dp||rp)?{demand_pct:dp/100,roughness_pct:rp/100,seed:parseInt($("unc-seed").value)||42}:null,
-      sensor_noise:(pn||fn)?{pressure_noise_std:pn,flow_noise_std:fn,seed:parseInt($("unc-seed").value)||42}:null,
-    };
-  }else{
-    endpoint=`/dma/${encodeURIComponent(S.file)}/simulate`;
-    body=base;
-  }
+            async function apiBlob(path) {
+                const r = await fetch(S.apiBase.replace(/\/$/, "") + path, { headers: { "X-API-Key": S.apiKey } });
+                if (!r.ok) { const t = await r.text().catch(() => "");
+                    throw new Error(`${r.status} ${r.statusText}: ${t.slice(0,120)}`); }
+                return r.blob();
+            }
 
-  try{
-    const resp=await api(endpoint,{method:"POST",body:JSON.stringify(body)});
-    S.scenarioId=resp.id;
-    setStatus("sim-status","PENDING","queued…");
-    if(resp.topology_repair?.connectors_added>0)
-      renderConnectors(resp.topology_repair.connectors_geojson,resp.topology_repair.connectors_added,resp.topology_repair.total_connector_length_m);
-    if(S.pollTimer)clearInterval(S.pollTimer);
-    S.pollTimer=setInterval(pollScenario,2500);
-    pollScenario();
-  }catch(e){showErr("err-sim",e.message);}
-});
+            async function apiText(path) {
+                const r = await fetch(S.apiBase.replace(/\/$/, "") + path, { headers: { "X-API-Key": S.apiKey } });
+                if (!r.ok) { const t = await r.text().catch(() => "");
+                    throw new Error(`${r.status} ${r.statusText}: ${t.slice(0,120)}`); }
+                return r.text();
+            }
 
-async function pollScenario(){
-  if(!S.scenarioId)return;
-  try{
-    const d=await api(`/simulate/${S.scenarioId}`);
-    if(d.status==="PENDING"||d.status==="RUNNING"){
-      setStatus("sim-status",d.status,"simulating…");
-    }else if(d.status==="DONE"){
-      clearInterval(S.pollTimer);
-      setStatus("sim-status","DONE","complete");
-      renderSimSummary(d.summary);
-      await renderSimNodes(0);
-      maybeUnlockPostSimTabs();
-      loadReportSummary();
-    }else{
-      clearInterval(S.pollTimer);
-      setStatus("sim-status","FAILED",d.error_message||"unknown error");
-    }
-  }catch(e){clearInterval(S.pollTimer);showErr("err-sim",e.message);}
-}
+            // ── CHART MODAL ──────────────────────────────────────────────────────────
+            function openChartModal(title) {
+                const overlay = $("chart-modal-overlay");
+                $("chart-modal-title").textContent = title || "📊 CHART";
+                overlay.classList.add("open");
+                document.body.style.overflow = "hidden";
+            }
 
-function renderSimSummary(s){
-  $("sim-summary").style.display="block";
-  const col=v=>v>45?"red":v<7?"green":"";
-  const fault_info=s.sensor_faults_applied?`<div class="stat"><div class="v amber">${s.sensor_faults_applied}</div><div class="l">Sensor faults</div></div>`:"";
-  const unc_info=s.model_uncertainty?`<div class="stat"><div class="v cyan">ON</div><div class="l">Uncertainty</div></div>`:"";
-  $("sim-statgrid").innerHTML=`
-    <div class="stat"><div class="v ${col(s.pressure_avg_m)}">${s.pressure_avg_m}</div><div class="l">Avg pressure m</div></div>
-    <div class="stat"><div class="v">${s.pressure_min_m}</div><div class="l">Min pressure m</div></div>
-    <div class="stat"><div class="v">${s.pressure_max_m}</div><div class="l">Max pressure m</div></div>
-    <div class="stat"><div class="v ${s.low_pressure_nodes>0?"red":""}">${s.low_pressure_nodes}</div><div class="l">Low-pres nodes</div></div>
-    <div class="stat"><div class="v">${s.leak_events_injected||0}</div><div class="l">Leak events</div></div>
-    <div class="stat"><div class="v">${s.time_steps}</div><div class="l">Time steps</div></div>
-    ${fault_info}${unc_info}`;
-}
+            function closeChartModal() {
+                const overlay = $("chart-modal-overlay");
+                overlay.classList.remove("open");
+                document.body.style.overflow = "";
+                // revoke object URL to free memory
+                if (S.chartObjectURL) {
+                    URL.revokeObjectURL(S.chartObjectURL);
+                    S.chartObjectURL = null;
+                }
+            }
 
-async function renderSimNodes(step){
-  LG.sim_nodes.clearLayers();LG.sim_pipes.clearLayers();
-  try{
-    const [nodes,pipes]=await Promise.all([
-      api(`/simulate/${S.scenarioId}/geojson/nodes?time_step=${step}`),
-      api(`/simulate/${S.scenarioId}/geojson/pipes?time_step=${step}`),
-    ]);
-    L.geoJSON(pipes,{style:()=>({color:"#1a3050",weight:1.5,opacity:.6})}).addTo(LG.sim_pipes);
-    nodes.features.forEach(f=>{
-      if(!f.geometry)return;
-      const[lon,lat]=f.geometry.coordinates,p=f.properties;
-      const col=p.is_low_pressure?"#3dbf72":p.pressure>45?"#e04840":p.pressure>30?"#e09a2a":"#50a0d8";
-      L.circleMarker([lat,lon],{radius:p.is_low_pressure?6:4,color:"#060c10",weight:1,fillColor:col,fillOpacity:.9})
-        .bindTooltip(`<div class="info-tt"><b>${p.element_id}</b><br>Pressure: ${p.pressure||"?"}m${p.is_low_pressure?" ⚠ LOW":""}${p.water_age?`<br>Age: ${p.water_age}h`:""}</div>`,{sticky:true})
-        .addTo(LG.sim_nodes);
-    });
-    map.addLayer(LG.sim_nodes);map.addLayer(LG.sim_pipes);
-  }catch(e){}
-}
+            function setChartImage(blob, title) {
+                // revoke previous URL
+                if (S.chartObjectURL) {
+                    URL.revokeObjectURL(S.chartObjectURL);
+                    S.chartObjectURL = null;
+                }
+                const url = URL.createObjectURL(blob);
+                S.chartObjectURL = url;
+                const body = $("chart-modal-body");
+                body.innerHTML = `<img src="${url}" alt="chart" />`;
+                openChartModal(title);
+            }
 
-function renderConnectors(gj,count,totalLen){
-  LG.connectors.clearLayers();
-  if(!gj?.features?.length)return;
-  L.geoJSON(gj,{
-    style:()=>({color:var_("--purple"),weight:2.5,dashArray:"6 4",opacity:.85}),
-    onEachFeature:(f,l)=>l.bindTooltip(`<div class="info-tt"><b>${f.properties.id}</b><br>${f.properties.length_m}m · ${f.properties.material}<br><span style="color:var(--dim)">${(f.properties.reason||"").slice(0,80)}</span></div>`,{sticky:true})
-  }).addTo(LG.connectors);
-  $("lc-connectors").textContent=count;
-  const a=$("conn-alert");a.style.display="block";
-  a.innerHTML=`<b>${count} synthetic connector${count>1?"s":""} added</b> (${totalLen}m total). Verify in field before using for investment decisions.`;
-}
+            function setChartError(msg) {
+                const body = $("chart-modal-body");
+                body.innerHTML =
+                    `<div style="color:var(--red);font-family:var(--mono);font-size:14px;padding:20px">⚠ ${msg}</div>`;
+                openChartModal("❌ Chart error");
+            }
 
-// ── LEAKAGE ───────────────────────────────────────────────────────────────────
-on("btn-load-leakage","click",async()=>{
-  switchTab("leakage");
-  if(!S.scenarioId)return;
-  try{
-    const d=await api(`/dma/${encodeURIComponent(S.file)}/simulate/${S.scenarioId}/leakage`);
-    S.leakageData=d;renderLeakage(d);
-  }catch(e){$("leakage-ph").textContent="Failed: "+e.message;}
-});
+            // close chart modal on overlay click or close button
+            on("chart-modal-close", "click", closeChartModal);
+            on("chart-modal-overlay", "click", e => {
+                if (e.target.id === "chart-modal-overlay") closeChartModal();
+            });
+            document.addEventListener("keydown", e => {
+                if (e.key === "Escape") { closeChartModal();
+                    closeReportModal(); }
+            });
 
-function renderLeakage(d){
-  $("leakage-ph").style.display="none";$("leakage-content").style.display="block";
-  const nrw=d.nrw;
-  const ilicol=nrw.ili>8?"red":nrw.ili>4?"amber":"green";
-  $("nrw-grid").innerHTML=`
-    <div class="stat"><div class="v ${nrw.nrw_pct>30?"red":nrw.nrw_pct>20?"amber":"green"}">${nrw.nrw_pct}%</div><div class="l">NRW</div></div>
-    <div class="stat"><div class="v">${nrw.nrw_m3h}</div><div class="l">NRW m³/h</div></div>
-    <div class="stat"><div class="v">${nrw.real_loss_m3h}</div><div class="l">Real loss m³/h</div></div>
-    <div class="stat"><div class="v">${nrw.system_input_m3h}</div><div class="l">System input</div></div>
-    <div class="stat"><div class="v">${nrw.authorised_m3h}</div><div class="l">Authorised m³/h</div></div>
-    <div class="stat"><div class="v ${ilicol}">${nrw.ili}</div><div class="l">ILI index</div></div>`;
+            // ── REPORT MODAL ──────────────────────────────────────────────────────────
+            function openReportModal() { $("report-modal-overlay").classList.add("open");
+                document.body.style.overflow = "hidden"; }
 
-  $("pzones").innerHTML=d.pressure_zones.map(z=>`
-    <div class="pz-row">
-      <div class="pz-dot" style="background:${z.zone==="low"?"var(--green)":z.zone==="high"?"var(--red)":"var(--blue)"}"></div>
-      <div style="flex:1">${z.zone.toUpperCase()} pressure</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--cyan)">${z.count} nodes (${z.pct}%)</div>
-    </div>
-    <div class="pz-bar"><div class="pz-fill" style="width:${z.pct}%;background:${z.zone==="low"?"var(--green)":z.zone==="high"?"var(--red)":"var(--blue)"}"></div></div>`).join("");
+            function closeReportModal() { $("report-modal-overlay").classList.remove("open");
+                document.body.style.overflow = ""; }
+            on("report-modal-close", "click", closeReportModal);
+            on("report-modal-overlay", "click", e => { if (e.target.id === "report-modal-overlay") closeReportModal(); });
 
-  drawLineChart("balance-chart",
-    d.timestep_balance.map(b=>b.hour),
-    [{label:"Inflow",color:"var(--cyan)",values:d.timestep_balance.map(b=>b.inflow_m3h)},
-     {label:"Demand",color:"var(--green)",dash:true,values:d.timestep_balance.map(b=>b.demand_m3h)}]);
+            // ── SETUP ────────────────────────────────────────────────────────────────
+            on("btn-connect", "click", async () => {
+                showErr("err-setup", null);
+                S.apiBase = $("api-base").value.trim();
+                S.apiKey = $("api-key").value.trim();
+                const sel = $("file-select");
+                sel.innerHTML = "<option>⏳ loading…</option>";
+                sel.disabled = true;
+                $("btn-load-layers").disabled = true;
+                $("btn-run-sim").disabled = true;
+                try {
+                    await fetch(S.apiBase + "/health");
+                    const files = await api("/files");
+                    let fileList = [];
+                    if (Array.isArray(files)) {
+                        fileList = files.map(item => typeof item === 'string' ? item : (item.filename || item.name || ''))
+                            .filter(Boolean);
+                    } else {
+                        for (const key of Object.keys(files)) {
+                            if (Array.isArray(files[key])) {
+                                fileList = files[key].map(item => typeof item === 'string' ? item : (item.filename || item
+                                    .name || '')).filter(Boolean);
+                                break;
+                            }
+                        }
+                    }
+                    fileList = fileList.filter(f => f && /\.gpkg$/i.test(f));
+                    sel.innerHTML = "";
+                    if (fileList.length === 0) {
+                        sel.innerHTML = '<option value="">— no GPKG files found —</option>';
+                    } else {
+                        fileList.forEach(f => {
+                            const o = document.createElement("option");
+                            o.value = f;
+                            o.textContent = f;
+                            sel.appendChild(o);
+                        });
+                        S.file = fileList[0];
+                        $("btn-load-layers").disabled = false;
+                        $("btn-run-sim").disabled = false;
+                    }
+                    sel.disabled = false;
+                } catch (e) { showErr("err-setup", "Connect failed: " + e.message);
+                    sel.innerHTML = '<option value="">— error —</option>';
+                    sel.disabled = false; }
+            });
 
-  $("risk-list").innerHTML=d.pipe_risks_top20.map(r=>`
-    <div class="risk-item" data-lat="${r.lat}" data-lon="${r.lon}">
-      <div class="ri-hd">
-        <span class="rbadge ${r.risk_level}">${r.risk_level.toUpperCase()}</span>
-        <span class="ri-id">${r.pipe_id}</span>
-        <span style="flex:1"></span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--amber)">${(r.risk_score*100).toFixed(0)}%</span>
-      </div>
-      <div class="ri-drivers">${r.drivers.join(" · ")}</div>
-      <div class="rbar"><div class="rbar-fill" style="width:${r.risk_score*100}%;background:${r.risk_level==="critical"?"var(--red)":r.risk_level==="high"?"var(--amber)":"var(--purple)"}"></div></div>
-    </div>`).join("");
-  document.querySelectorAll(".risk-item").forEach(el=>el.addEventListener("click",()=>{
-    const lat=parseFloat(el.dataset.lat),lon=parseFloat(el.dataset.lon);
-    if(lat&&lon)map.flyTo([lat,lon],17,{duration:1});
-  }));
+            on("btn-load-layers", "click", async () => {
+                showErr("err-setup", null);
+                S.file = $("file-select").value;
+                if (!S.file) { showErr("err-setup", "Select a GPKG file first."); return; }
+                try {
+                    const d = await api(`/dma/${encodeURIComponent(S.file)}/layers`);
+                    renderLayers(d);
+                    buildLayerControls(d);
+                    buildToolbar();
+                    $("setup-stats").style.display = "block";
+                    $("setup-statgrid").innerHTML = `
+                    <div class="stat"><div class="v">${d.stats.pipe_count}</div><div class="l">Pipes</div></div>
+                    <div class="stat"><div class="v">${d.stats.source_count}</div><div class="l">Sources</div></div>
+                    <div class="stat"><div class="v">${d.stats.tank_count}</div><div class="l">Tanks</div></div>
+                    <div class="stat"><div class="v">${d.stats.valve_count}</div><div class="l">Valves</div></div>
+                    <div class="stat"><div class="v">${d.stats.bulk_meter_count}</div><div class="l">Bulk meters</div></div>
+                    <div class="stat"><div class="v">${(d.stats.total_pipe_length_m/1000).toFixed(1)}km</div><div class="l">Pipe length</div></div>`;
+                    $("map-legend").style.display = "block";
+                    try { map.fitBounds(LG.pipes.getLayers()[0]?.getBounds() || LG.boundary.getLayers()[0]
+                            ?.getBounds(), { padding: [24, 24] }); } catch (e) {}
+                    switchTab("layers");
+                } catch (e) { showErr("err-setup", e.message); }
+            });
 
-  $("leakage-warnings").innerHTML=(d.warnings||[]).map(w=>`
-    <div style="color:var(--amber);font-size:10.5px;font-family:var(--mono);margin-top:5px;padding:6px 8px;border:1px solid var(--amber2);border-radius:3px">⚠ ${w}</div>`).join("");
+            function renderLayers(d) {
+                Object.values(LG).forEach(lg => lg.clearLayers());
+                L.geoJSON(d.boundary, { style: () => ({ color: var_("--cyan"), weight: 1.5, fillOpacity: .04,
+                        opacity: .7 }) })
+                    .addTo(LG.boundary);
+                L.geoJSON(d.pipes, {
+                    style: f => ({ color: var_("--cyan"), weight: f.properties.diam_mm > 100 ? 2.5 : 1.5,
+                        opacity: .7 }),
+                    onEachFeature: (f, l) => l.bindTooltip(
+                        `<div class="info-tt"><b>${f.properties.fid}</b><br>Ø${f.properties.diam_mm}mm C=${f.properties.hw_c} ${f.properties.length_m}m</div>`, { sticky: true })
+                }).addTo(LG.pipes);
+                d.sources.features.forEach(f => {
+                    if (!f.geometry) return;
+                    const [lon, lat] = f.geometry.coordinates,
+                        p = f.properties;
+                    L.circleMarker([lat, lon], { radius: 7, color: var_("--bg"), weight: 2, fillColor: "#3dbf72",
+                            fillOpacity: 1 })
+                        .bindTooltip(
+                            `<div class="info-tt"><b>${p.name||p.fid}</b><br>Borehole · head ${p.total_head_m}m<br>Elev ${p.elev_m}m</div>`, { sticky: true })
+                        .addTo(LG.sources);
+                });
+                d.tanks.features.forEach(f => {
+                    if (!f.geometry) return;
+                    const [lon, lat] = f.geometry.coordinates,
+                        p = f.properties;
+                    L.circleMarker([lat, lon], { radius: 7, color: var_("--bg"), weight: 2, fillColor: "#50a0d8",
+                            fillOpacity: 1 })
+                        .bindTooltip(
+                            `<div class="info-tt"><b>${p.name||p.fid}</b><br>Tank · ${p.cap_m3}m³<br>MaxLevel ${p.max_level_m}m</div>`, { sticky: true })
+                        .addTo(LG.tanks);
+                });
+                d.valves.features.forEach(f => {
+                    if (!f.geometry) return;
+                    const [lon, lat] = f.geometry.coordinates,
+                        p = f.properties;
+                    L.circleMarker([lat, lon], { radius: 4, color: var_("--bg"), weight: 1, fillColor: "#e09a2a",
+                            fillOpacity: .9 })
+                        .bindTooltip(`<div class="info-tt">${p.fid} · ${p.valve_type||"Valve"}<br>Ø${p.diam_mm}mm</div>`, { sticky: true })
+                        .addTo(LG.valves);
+                });
+                d.bulk_meters.features.forEach(f => {
+                    if (!f.geometry) return;
+                    const [lon, lat] = f.geometry.coordinates,
+                        p = f.properties;
+                    L.circleMarker([lat, lon], { radius: 6, color: var_("--bg"), weight: 2, fillColor: "#c070e0",
+                            fillOpacity: 1 })
+                        .bindTooltip(`<div class="info-tt"><b>${p.name||p.fid}</b><br>Bulk meter</div>`, { sticky: true })
+                        .addTo(LG.bulk_meters);
+                });
+            }
 
-  renderHotspots(d.hotspots_geojson);
-}
+            function var_(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
-function renderHotspots(gj){
-  LG.hotspots.clearLayers();
-  if(!gj?.features?.length)return;
-  gj.features.forEach(f=>{
-    const[lon,lat]=f.geometry.coordinates,p=f.properties;
-    const col=p.risk_level==="critical"?"#e04840":p.risk_level==="high"?"#e09a2a":"#7b6ff0";
-    const r=p.risk_level==="critical"?8:p.risk_level==="high"?6:4;
-    L.circleMarker([lat,lon],{radius:r,color:"#060c10",weight:1.5,fillColor:col,fillOpacity:.9})
-      .bindTooltip(`<div class="info-tt"><b>${p.pipe_id}</b> <span style="color:${col}">${p.risk_level.toUpperCase()}</span><br>Score: ${(p.risk_score*100).toFixed(0)}%<br>${p.drivers}</div>`,{sticky:true})
-      .addTo(LG.hotspots);
-  });
-  $("lc-hotspots").textContent=gj.features.length;
-}
+            function buildLayerControls(d) {
+                const layers = [
+                    { key: "boundary", label: "DMA boundary", count: "" },
+                    { key: "pipes", label: "Pipes", count: d.stats.pipe_count },
+                    { key: "sources", label: "Boreholes / sources", count: d.stats.source_count },
+                    { key: "tanks", label: "Storage tanks", count: d.stats.tank_count },
+                    { key: "valves", label: "Valves", count: d.stats.valve_count },
+                    { key: "bulk_meters", label: "Bulk meters", count: d.stats.bulk_meter_count },
+                    { key: "connectors", label: "Synthetic connectors", count: "—" },
+                    { key: "sim_nodes", label: "Sim: node pressure", count: "—" },
+                    { key: "hotspots", label: "Risk hotspots", count: "—" },
+                ];
+                $("layer-controls").innerHTML = layers.map(l => `
+                  <div class="lc-row">
+                    <div class="lc-tog on" id="tog-${l.key}" onclick="togLayer('${l.key}',this)"></div>
+                    <span class="lc-label">${l.label}</span>
+                    <span class="lc-count" id="lc-${l.key}">${l.count}</span>
+                  </div>`).join("");
+            }
 
-// ── TANKS ─────────────────────────────────────────────────────────────────────
-on("btn-load-tanks","click",async()=>{
-  switchTab("tanks");
-  if(!S.scenarioId)return;
-  try{
-    const d=await api(`/dma/${encodeURIComponent(S.file)}/simulate/${S.scenarioId}/tanks`);
-    renderTanks(d);
-  }catch(e){$("tanks-ph").textContent="Failed: "+e.message;}
-});
+            function togLayer(k, el) {
+                const on = !el.classList.contains("on");
+                el.classList.toggle("on", on);
+                if (on) map.addLayer(LG[k]);
+                else map.removeLayer(LG[k]);
+            }
+            window.togLayer = togLayer;
 
-function renderTanks(d){
-  $("tanks-ph").style.display="none";$("tanks-content").style.display="block";
-  if(!d.tanks?.length){$("tank-panels").innerHTML="<p style='color:var(--faint);font-size:11px'>No tank data in this simulation.</p>";return;}
-  $("tank-panels").innerHTML=d.tanks.map(t=>`
-    <div style="margin-bottom:16px">
-      <div class="sh" style="margin-top:0">${t.tank_id}</div>
-      <canvas id="tank-${t.tank_id.replace(/\W/g,"_")}" height="100"></canvas>
-    </div>`).join("");
-  d.tanks.forEach(t=>{
-    const cid="tank-"+t.tank_id.replace(/\W/g,"_");
-    const hours=t.series.map(s=>s.hour);
-    const vols=t.series.map(s=>s.volume_m3||0);
-    drawLineChart(cid,hours,[{label:"Volume m³",color:"var(--blue)",values:vols}]);
-  });
-}
+            function buildToolbar() {
+                $("map-toolbar").innerHTML = `
+                  <div class="mb" id="mb-fit">FIT</div>
+                  <div class="mb" id="mb-pipes">PIPES</div>
+                  <div class="mb" id="mb-pressure">PRESSURE</div>
+                  <div class="mb" id="mb-hotspots">RISK</div>`;
+                on("mb-fit", "click", () => { try { map.fitBounds(LG.pipes.getLayers()[0]?.getBounds() || LG.boundary
+                            .getLayers()[0]?.getBounds(), { padding: [20, 20] }); } catch (e) {} });
+                on("mb-pipes", "click", () => switchMapView("pipes"));
+                on("mb-pressure", "click", () => switchMapView("pressure"));
+                on("mb-hotspots", "click", () => switchMapView("hotspots"));
+            }
 
-// ── CHARTS (matplotlib PNGs from the service) ──────────────────────────────────
-async function apiBlob(path){
-  const r=await fetch(S.apiBase.replace(/\/$/,"")+path,{headers:{"X-API-Key":S.apiKey}});
-  if(!r.ok){const t=await r.text().catch(()=>"");throw new Error(`${r.status} ${r.statusText}: ${t.slice(0,120)}`);}
-  return r.blob();
-}
-async function apiText(path){
-  const r=await fetch(S.apiBase.replace(/\/$/,"")+path,{headers:{"X-API-Key":S.apiKey}});
-  if(!r.ok){const t=await r.text().catch(()=>"");throw new Error(`${r.status} ${r.statusText}: ${t.slice(0,120)}`);}
-  return r.text();
-}
+            function switchMapView(v) {
+                document.querySelectorAll(".mb").forEach(b => b.classList.remove("active"));
+                if (v === "pipes") {
+                    $("mb-pipes").classList.add("active");
+                    map.addLayer(LG.pipes);
+                    map.removeLayer(LG.sim_nodes);
+                    map.removeLayer(LG.hotspots);
+                } else if (v === "pressure") {
+                    $("mb-pressure").classList.add("active");
+                    map.removeLayer(LG.pipes);
+                    map.addLayer(LG.sim_nodes);
+                    map.removeLayer(LG.hotspots);
+                } else {
+                    $("mb-hotspots").classList.add("active");
+                    map.removeLayer(LG.pipes);
+                    map.removeLayer(LG.sim_nodes);
+                    map.addLayer(LG.hotspots);
+                }
+            }
 
-function maybeUnlockPostSimTabs(){
-  if(!S.scenarioId)return;
-  $("charts-ph").style.display="none";$("charts-content").style.display="block";
-  $("report-ph").style.display="none";$("report-content").style.display="block";
-}
+            // ── EVENTS ──────────────────────────────────────────────────────────────
+            on("ev-lk-type", "change", function() {
+                $("ev-lk-peak-wrap").style.display = this.value === "incipient_leakage" ? "block" : "none";
+            });
+            on("btn-add-leak", "click", () => {
+                const pid = $("ev-lk-pipe").value.trim();
+                if (!pid) return;
+                const type = $("ev-lk-type").value;
+                const ev = { type, link_id: pid, diameter: parseFloat($("ev-lk-diam").value) || 0.015,
+                    start_time: parseInt($("ev-lk-t0").value) || 0, end_time: parseInt($("ev-lk-t1").value) || 86400 };
+                if (type === "incipient_leakage") ev.peak_time = parseInt($("ev-lk-peak").value) || 43200;
+                S.events.leakages.push(ev);
+                renderEventLists();
+                updateEventSummary();
+            });
+            on("btn-add-fault", "click", () => {
+                const sid = $("ev-sf-id").value.trim();
+                if (!sid) return;
+                const ft = $("ev-sf-ftype").value;
+                const ev = { type: "sensor_fault", fault_type: ft, sensor_id: sid,
+                    sensor_type: parseInt($("ev-sf-stype").value),
+                    start_time: parseInt($("ev-sf-t0").value) || 0,
+                    end_time: parseInt($("ev-sf-t1").value) || 86400 };
+                const p = parseFloat($("ev-sf-param").value) || 1.0;
+                if (ft === "constant") ev.constant_shift = p;
+                else if (ft === "drift" || ft === "percentage") ev.coef = p;
+                else if (ft === "gaussian") ev.std = p;
+                S.events.sensor_faults.push(ev);
+                renderEventLists();
+                updateEventSummary();
+            });
+            on("btn-add-act", "click", () => {
+                const etype = $("ev-ae-type").value;
+                const eid = $("ev-ae-id").value.trim();
+                if (!eid) return;
+                const state = $("ev-ae-state").value.trim();
+                const ev = { type: etype, start_time: parseInt($("ev-ae-t0").value) || 0,
+                    end_time: parseInt($("ev-ae-t1").value) || 86400 };
+                if (etype === "valve_state") { ev.valve_id = eid;
+                    ev.valve_state = state || "closed"; } else if (etype === "pump_state") { ev.pump_id = eid;
+                    ev.pump_state = state || "off"; } else { ev.pump_id = eid;
+                    ev.pump_speed = parseFloat(state) || 1.0; }
+                S.events.actuator_events.push(ev);
+                renderEventLists();
+                updateEventSummary();
+            });
+            on("btn-clear-events", "click", () => {
+                S.events = { leakages: [], sensor_faults: [], actuator_events: [] };
+                renderEventLists();
+                updateEventSummary();
+            });
 
-on("btn-plot-pressure","click",async()=>{
-  showErr("err-charts",null);
-  if(!S.scenarioId){showErr("err-charts","Run a simulation first.");return;}
-  const ids=$("chart-node-ids").value.trim();
-  const qs=ids?`?nodes=${encodeURIComponent(ids)}`:"";
-  try{
-    const blob=await apiBlob(`/simulate/${S.scenarioId}/plots/pressure${qs}`);
-    const url=URL.createObjectURL(blob);
-    $("pressure-chart-wrap").innerHTML=`<img src="${url}" style="width:100%;border:1px solid var(--border);border-radius:3px"/>`;
-  }catch(e){showErr("err-charts","Chart failed: "+e.message);}
-});
+            function renderEventLists() {
+                const render = (listId, items, badge, fmt) => {
+                    $(listId).innerHTML = items.map((ev, i) => `
+                        <div class="event-item">
+                          <span class="ev-badge ${badge}">${badge.toUpperCase()}</span>
+                          <span class="ev-rm" onclick="removeEvent('${listId}',${i})">✕</span>
+                          <div class="ev-detail">${fmt(ev)}</div>
+                        </div>`).join("") || `<p style="color:var(--faint);font-size:11px;margin-bottom:6px">No ${badge} events</p>`;
+                };
+                render("ev-leakage-list", S.events.leakages, "leakage",
+                    e => `${e.type==="abrupt_leakage"?"Abrupt burst":"Incipient"} · pipe <b>${e.link_id}</b> · Ø${e.diameter}m · t=[${e.start_time}s–${e.end_time}s]${e.peak_time?` peak@${e.peak_time}s`:""}`);
+                render("ev-fault-list", S.events.sensor_faults, "fault",
+                    e => `${e.fault_type} · sensor <b>${e.sensor_id}</b> (${e.sensor_type===0?"pressure":"flow"}) · t=[${e.start_time}s–${e.end_time}s]`);
+                render("ev-act-list", S.events.actuator_events, "actuator",
+                    e => `${e.type} · <b>${e.valve_id||e.pump_id}</b> → ${e.valve_state||e.pump_state||e.pump_speed} · t=[${e.start_time}s–${e.end_time}s]`);
+            }
 
-on("btn-plot-flow","click",async()=>{
-  showErr("err-charts",null);
-  if(!S.scenarioId){showErr("err-charts","Run a simulation first.");return;}
-  const ids=$("chart-link-ids").value.trim();
-  const qs=ids?`?links=${encodeURIComponent(ids)}`:"";
-  try{
-    const blob=await apiBlob(`/simulate/${S.scenarioId}/plots/flow${qs}`);
-    const url=URL.createObjectURL(blob);
-    $("flow-chart-wrap").innerHTML=`<img src="${url}" style="width:100%;border:1px solid var(--border);border-radius:3px"/>`;
-  }catch(e){showErr("err-charts","Chart failed: "+e.message);}
-});
+            function removeEvent(listId, idx) {
+                const key = listId === "ev-leakage-list" ? "leakages" : listId === "ev-fault-list" ? "sensor_faults" :
+                    "actuator_events";
+                S.events[key].splice(idx, 1);
+                renderEventLists();
+                updateEventSummary();
+            }
+            window.removeEvent = removeEvent;
 
-// ── REPORT (.rpt) ───────────────────────────────────────────────────────────────
-async function loadReportSummary(){
-  showErr("err-report",null);
-  if(!S.scenarioId)return;
-  try{
-    const d=await api(`/simulate/${S.scenarioId}/report/summary`);
-    const fb=d.flow_balance;
-    $("report-nrw-grid").innerHTML=`
-      <div class="stat"><div class="v ${fb.nrw_pct>30?"red":fb.nrw_pct>20?"amber":"green"}">${fb.nrw_pct}%</div><div class="l">NRW</div></div>
-      <div class="stat"><div class="v">${fb.total_inflow_m3h}</div><div class="l">Inflow m³/h</div></div>
-      <div class="stat"><div class="v">${fb.consumer_demand_m3h}</div><div class="l">Demand m³/h</div></div>
-      <div class="stat"><div class="v ${d.balanced?"green":"red"}">${d.balanced?"YES":"NO"}</div><div class="l">Balanced</div></div>`;
-    $("report-warnings").innerHTML=(d.warnings||[]).map(w=>`
-      <div style="color:var(--amber);font-size:10.5px;font-family:var(--mono);margin-top:5px;padding:6px 8px;border:1px solid var(--amber2);border-radius:3px">⚠ ${w}</div>`).join("");
-  }catch(e){showErr("err-report","No report available: "+e.message);}
-}
+            function updateEventSummary() {
+                const lk = S.events.leakages.length,
+                    sf = S.events.sensor_faults.length,
+                    ae = S.events.actuator_events.length;
+                const dp = parseFloat($("unc-demand").value) || 0,
+                    rp = parseFloat($("unc-rough").value) || 0;
+                const pn = parseFloat($("unc-pnoise").value) || 0,
+                    fn = parseFloat($("unc-fnoise").value) || 0;
+                const hasUnc = dp || rp || pn || fn;
+                const total = lk + sf + ae + (hasUnc ? 1 : 0);
+                const bar = $("event-summary-bar");
+                bar.style.display = total ? "block" : "none";
+                if (total) {
+                    const parts = [];
+                    if (lk) parts.push(`${lk} leak${lk>1?"s":""}`);
+                    if (sf) parts.push(`${sf} sensor fault${sf>1?"s":""}`);
+                    if (ae) parts.push(`${ae} actuator event${ae>1?"s":""}`);
+                    if (hasUnc) parts.push("uncertainties active");
+                    $("esb-counts").textContent = parts.join(" · ");
+                }
+            }
+            ["unc-demand", "unc-rough", "unc-pnoise", "unc-fnoise"].forEach(id => on(id, "input", updateEventSummary));
 
-on("btn-load-report","click",async()=>{
-  showErr("err-report",null);
-  if(!S.scenarioId){showErr("err-report","Run a simulation first.");return;}
-  try{
-    const txt=await apiText(`/simulate/${S.scenarioId}/report`);
-    $("report-raw").textContent=txt;
-    openReportModal();
-  }catch(e){showErr("err-report","Failed to load report: "+e.message);}
-});
+            // ── SIMULATE ─────────────────────────────────────────────────────────────
+            on("sim-demand-model", "change", () => {
+                $("sim-pda-params").style.display = $("sim-demand-model").value === "PDA" ? "block" : "none";
+            });
+            on("btn-run-sim", "click", async () => {
+                showErr("err-sim", null);
+                $("sim-summary").style.display = "none";
+                if (!S.file) { showErr("err-sim", "Load a DMA file first."); return; }
+                const hasEvents = S.events.leakages.length || S.events.sensor_faults.length || S.events.actuator_events
+                    .length;
+                const dp = parseFloat($("unc-demand").value) || 0;
+                const rp = parseFloat($("unc-rough").value) || 0;
+                const pn = parseFloat($("unc-pnoise").value) || 0;
+                const fn = parseFloat($("unc-fnoise").value) || 0;
+                const hasUnc = dp || rp || pn || fn;
+                const isAdvanced = hasEvents || hasUnc;
 
-function openReportModal(){$("report-modal-overlay").classList.add("open");}
-function closeReportModal(){$("report-modal-overlay").classList.remove("open");}
-on("report-modal-close","click",closeReportModal);
-on("report-modal-overlay","click",e=>{if(e.target.id==="report-modal-overlay")closeReportModal();});
-document.addEventListener("keydown",e=>{if(e.key==="Escape")closeReportModal();});
+                const base = {
+                    name: $("sim-name").value || "DMA run",
+                    duration_hrs: parseInt($("sim-duration").value) || 24,
+                    time_step_min: parseInt($("sim-timestep").value) || 60,
+                    base_demand_m3h: parseFloat($("sim-demand").value) || 0.011,
+                    leakage_frac: parseFloat($("sim-leakage").value) || 0.20,
+                    demand_model: $("sim-demand-model").value || "DDA",
+                    pda_pressure_min: parseFloat($("sim-pda-pmin").value) || 0,
+                    pda_pressure_required: parseFloat($("sim-pda-preq").value) || 0.1,
+                    pda_pressure_exponent: parseFloat($("sim-pda-pexp").value) || 0.5,
+                };
 
-on("btn-download-report","click",async()=>{
-  showErr("err-report",null);
-  if(!S.scenarioId){showErr("err-report","Run a simulation first.");return;}
-  try{
-    const blob=await apiBlob(`/simulate/${S.scenarioId}/report/download`);
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");
-    a.href=url;a.download=`scenario_${S.scenarioId}.rpt`;
-    document.body.appendChild(a);a.click();a.remove();
-    URL.revokeObjectURL(url);
-  }catch(e){showErr("err-report","Download failed: "+e.message);}
-});
+                let endpoint, body;
+                if (isAdvanced) {
+                    endpoint = `/dma/${encodeURIComponent(S.file)}/simulate/advanced`;
+                    body = {
+                        ...base,
+                        leakage_events: S.events.leakages,
+                        sensor_faults: S.events.sensor_faults,
+                        actuator_events: S.events.actuator_events,
+                        model_uncertainty: (dp || rp) ? { demand_pct: dp / 100, roughness_pct: rp / 100,
+                            seed: parseInt($("unc-seed").value) || 42 } : null,
+                        sensor_noise: (pn || fn) ? { pressure_noise_std: pn, flow_noise_std: fn,
+                            seed: parseInt($("unc-seed").value) || 42 } : null,
+                    };
+                } else {
+                    endpoint = `/dma/${encodeURIComponent(S.file)}/simulate`;
+                    body = base;
+                }
 
-// ── shared chart ──────────────────────────────────────────────────────────────
-function drawLineChart(canvasId,xLabels,series){
-  const canvas=$(canvasId);
-  if(!canvas)return;
-  const ctx=canvas.getContext("2d");
-  canvas.width=canvas.offsetWidth||360;
-  const W=canvas.width,H=canvas.height;
-  const pad={t:10,r:8,b:24,l:42};
-  ctx.fillStyle="#060c10";ctx.fillRect(0,0,W,H);
-  const allVals=series.flatMap(s=>s.values.filter(v=>v!=null));
-  const maxVal=Math.max(...allVals,1);
-  const sx=i=>pad.l+(i/(xLabels.length-1||1))*(W-pad.l-pad.r);
-  const sy=v=>pad.t+(1-v/maxVal)*(H-pad.t-pad.b);
-  // grid
-  ctx.strokeStyle="#1a2c3a";ctx.lineWidth=1;
-  [0.25,0.5,0.75,1].forEach(f=>{
-    const y=sy(f*maxVal);
-    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
-    ctx.fillStyle="#3d5560";ctx.font="9px monospace";
-    ctx.fillText((f*maxVal).toFixed(1),2,y+3);
-  });
-  // series
-  series.forEach((s,si)=>{
-    const col=getComputedStyle(document.documentElement).getPropertyValue(s.color.replace(/var\(|\)/g,"").trim()).trim()||s.color;
-    ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=si===0?2:1.5;
-    if(s.dash)ctx.setLineDash([3,3]);else ctx.setLineDash([]);
-    s.values.forEach((v,i)=>{const x=sx(i),y=sy(v??0);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});
-    ctx.stroke();ctx.setLineDash([]);
-  });
-  // x labels
-  ctx.fillStyle="#3d5560";ctx.font="9px monospace";
-  xLabels.filter((_,i)=>i%4===0).forEach((l,i,arr)=>{ctx.fillText(l+"h",sx(i*4)-6,H-6);});
-}
+                try {
+                    const resp = await api(endpoint, { method: "POST", body: JSON.stringify(body) });
+                    S.scenarioId = resp.id;
+                    setStatus("sim-status", "PENDING", "queued…");
+                    if (resp.topology_repair?.connectors_added > 0)
+                        renderConnectors(resp.topology_repair.connectors_geojson, resp.topology_repair
+                            .connectors_added, resp.topology_repair.total_connector_length_m);
+                    if (S.pollTimer) clearInterval(S.pollTimer);
+                    S.pollTimer = setInterval(pollScenario, 2500);
+                    pollScenario();
+                } catch (e) { showErr("err-sim", e.message); }
+            });
 
-// ── init ──────────────────────────────────────────────────────────────────────
-renderEventLists();
-})();
-</script>
+            async function pollScenario() {
+                if (!S.scenarioId) return;
+                try {
+                    const d = await api(`/simulate/${S.scenarioId}`);
+                    if (d.status === "PENDING" || d.status === "RUNNING") {
+                        setStatus("sim-status", d.status, "simulating…");
+                    } else if (d.status === "DONE") {
+                        clearInterval(S.pollTimer);
+                        setStatus("sim-status", "DONE", "complete");
+                        renderSimSummary(d.summary);
+                        await renderSimNodes(0);
+                        maybeUnlockPostSimTabs();
+                        loadReportSummary();
+                    } else {
+                        clearInterval(S.pollTimer);
+                        setStatus("sim-status", "FAILED", d.error_message || "unknown error");
+                    }
+                } catch (e) { clearInterval(S.pollTimer);
+                    showErr("err-sim", e.message); }
+            }
+
+            function renderSimSummary(s) {
+                $("sim-summary").style.display = "block";
+                const col = v => v > 45 ? "red" : v < 7 ? "green" : "";
+                const fault_info = s.sensor_faults_applied ? `<div class="stat"><div class="v amber">${s.sensor_faults_applied}</div><div class="l">Sensor faults</div></div>` :
+                    "";
+                const unc_info = s.model_uncertainty ? `<div class="stat"><div class="v cyan">ON</div><div class="l">Uncertainty</div></div>` :
+                    "";
+                $("sim-statgrid").innerHTML = `
+                    <div class="stat"><div class="v ${col(s.pressure_avg_m)}">${s.pressure_avg_m}</div><div class="l">Avg pressure m</div></div>
+                    <div class="stat"><div class="v">${s.pressure_min_m}</div><div class="l">Min pressure m</div></div>
+                    <div class="stat"><div class="v">${s.pressure_max_m}</div><div class="l">Max pressure m</div></div>
+                    <div class="stat"><div class="v ${s.low_pressure_nodes>0?"red":""}">${s.low_pressure_nodes}</div><div class="l">Low-pres nodes</div></div>
+                    <div class="stat"><div class="v">${s.leak_events_injected||0}</div><div class="l">Leak events</div></div>
+                    <div class="stat"><div class="v">${s.time_steps}</div><div class="l">Time steps</div></div>
+                    ${fault_info}${unc_info}`;
+            }
+
+            async function renderSimNodes(step) {
+                LG.sim_nodes.clearLayers();
+                LG.sim_pipes.clearLayers();
+                try {
+                    const [nodes, pipes] = await Promise.all([
+                        api(`/simulate/${S.scenarioId}/geojson/nodes?time_step=${step}`),
+                        api(`/simulate/${S.scenarioId}/geojson/pipes?time_step=${step}`),
+                    ]);
+                    L.geoJSON(pipes, { style: () => ({ color: "#1a3050", weight: 1.5, opacity: .6 }) }).addTo(LG
+                        .sim_pipes);
+                    nodes.features.forEach(f => {
+                        if (!f.geometry) return;
+                        const [lon, lat] = f.geometry.coordinates,
+                            p = f.properties;
+                        const col = p.is_low_pressure ? "#3dbf72" : p.pressure > 45 ? "#e04840" : p.pressure >
+                            30 ? "#e09a2a" : "#50a0d8";
+                        L.circleMarker([lat, lon], { radius: p.is_low_pressure ? 6 : 4, color: "#060c10",
+                                weight: 1, fillColor: col, fillOpacity: .9 })
+                            .bindTooltip(
+                                `<div class="info-tt"><b>${p.element_id}</b><br>Pressure: ${p.pressure||"?"}m${p.is_low_pressure?" ⚠ LOW":""}${p.water_age?`<br>Age: ${p.water_age}h`:""}</div>`, { sticky: true })
+                            .addTo(LG.sim_nodes);
+                    });
+                    map.addLayer(LG.sim_nodes);
+                    map.addLayer(LG.sim_pipes);
+                } catch (e) {}
+            }
+
+            function renderConnectors(gj, count, totalLen) {
+                LG.connectors.clearLayers();
+                if (!gj?.features?.length) return;
+                L.geoJSON(gj, {
+                    style: () => ({ color: var_("--purple"), weight: 2.5, dashArray: "6 4", opacity: .85 }),
+                    onEachFeature: (f, l) => l.bindTooltip(
+                        `<div class="info-tt"><b>${f.properties.id}</b><br>${f.properties.length_m}m · ${f.properties.material}<br><span style="color:var(--dim)">${(f.properties.reason||"").slice(0,80)}</span></div>`, { sticky: true })
+                }).addTo(LG.connectors);
+                $("lc-connectors").textContent = count;
+                const a = $("conn-alert");
+                a.style.display = "block";
+                a.innerHTML =
+                    `<b>${count} synthetic connector${count>1?"s":""} added</b> (${totalLen}m total). Verify in field before using for investment decisions.`;
+            }
+
+            // ── LEAKAGE ──────────────────────────────────────────────────────────────
+            on("btn-load-leakage", "click", async () => {
+                switchTab("leakage");
+                if (!S.scenarioId) return;
+                try {
+                    const d = await api(`/dma/${encodeURIComponent(S.file)}/simulate/${S.scenarioId}/leakage`);
+                    S.leakageData = d;
+                    renderLeakage(d);
+                } catch (e) { $("leakage-ph").textContent = "Failed: " + e.message; }
+            });
+
+            function renderLeakage(d) {
+                $("leakage-ph").style.display = "none";
+                $("leakage-content").style.display = "block";
+                const nrw = d.nrw;
+                const ilicol = nrw.ili > 8 ? "red" : nrw.ili > 4 ? "amber" : "green";
+                $("nrw-grid").innerHTML = `
+                    <div class="stat"><div class="v ${nrw.nrw_pct>30?"red":nrw.nrw_pct>20?"amber":"green"}">${nrw.nrw_pct}%</div><div class="l">NRW</div></div>
+                    <div class="stat"><div class="v">${nrw.nrw_m3h}</div><div class="l">NRW m³/h</div></div>
+                    <div class="stat"><div class="v">${nrw.real_loss_m3h}</div><div class="l">Real loss m³/h</div></div>
+                    <div class="stat"><div class="v">${nrw.system_input_m3h}</div><div class="l">System input</div></div>
+                    <div class="stat"><div class="v">${nrw.authorised_m3h}</div><div class="l">Authorised m³/h</div></div>
+                    <div class="stat"><div class="v ${ilicol}">${nrw.ili}</div><div class="l">ILI index</div></div>`;
+
+                $("pzones").innerHTML = d.pressure_zones.map(z => `
+                    <div class="pz-row">
+                      <div class="pz-dot" style="background:${z.zone==="low"?"var(--green)":z.zone==="high"?"var(--red)":"var(--blue)"}"></div>
+                      <div style="flex:1">${z.zone.toUpperCase()} pressure</div>
+                      <div style="font-family:var(--mono);font-size:10px;color:var(--cyan)">${z.count} nodes (${z.pct}%)</div>
+                    </div>
+                    <div class="pz-bar"><div class="pz-fill" style="width:${z.pct}%;background:${z.zone==="low"?"var(--green)":z.zone==="high"?"var(--red)":"var(--blue)"}"></div></div>`).join(
+                    "");
+
+                drawLineChart("balance-chart",
+                    d.timestep_balance.map(b => b.hour), [{ label: "Inflow", color: "var(--cyan)", values: d
+                            .timestep_balance.map(b => b.inflow_m3h) },
+                        { label: "Demand", color: "var(--green)", dash: true, values: d.timestep_balance.map(
+                                b => b.demand_m3h) }
+                    ]);
+
+                $("risk-list").innerHTML = d.pipe_risks_top20.map(r => `
+                    <div class="risk-item" data-lat="${r.lat}" data-lon="${r.lon}">
+                      <div class="ri-hd">
+                        <span class="rbadge ${r.risk_level}">${r.risk_level.toUpperCase()}</span>
+                        <span class="ri-id">${r.pipe_id}</span>
+                        <span style="flex:1"></span>
+                        <span style="font-family:var(--mono);font-size:10px;color:var(--amber)">${(r.risk_score*100).toFixed(0)}%</span>
+                      </div>
+                      <div class="ri-drivers">${r.drivers.join(" · ")}</div>
+                      <div class="rbar"><div class="rbar-fill" style="width:${r.risk_score*100}%;background:${r.risk_level==="critical"?"var(--red)":r.risk_level==="high"?"var(--amber)":"var(--purple)"}"></div></div>
+                    </div>`).join("");
+                document.querySelectorAll(".risk-item").forEach(el => el.addEventListener("click", () => {
+                    const lat = parseFloat(el.dataset.lat),
+                        lon = parseFloat(el.dataset.lon);
+                    if (lat && lon) map.flyTo([lat, lon], 17, { duration: 1 });
+                }));
+
+                $("leakage-warnings").innerHTML = (d.warnings || []).map(w => `
+                    <div style="color:var(--amber);font-size:10.5px;font-family:var(--mono);margin-top:5px;padding:6px 8px;border:1px solid var(--amber2);border-radius:3px">⚠ ${w}</div>`).join(
+                    "");
+
+                renderHotspots(d.hotspots_geojson);
+            }
+
+            function renderHotspots(gj) {
+                LG.hotspots.clearLayers();
+                if (!gj?.features?.length) return;
+                gj.features.forEach(f => {
+                    const [lon, lat] = f.geometry.coordinates,
+                        p = f.properties;
+                    const col = p.risk_level === "critical" ? "#e04840" : p.risk_level === "high" ? "#e09a2a" :
+                        "#7b6ff0";
+                    const r = p.risk_level === "critical" ? 8 : p.risk_level === "high" ? 6 : 4;
+                    L.circleMarker([lat, lon], { radius: r, color: "#060c10", weight: 1.5, fillColor: col,
+                            fillOpacity: .9 })
+                        .bindTooltip(
+                            `<div class="info-tt"><b>${p.pipe_id}</b> <span style="color:${col}">${p.risk_level.toUpperCase()}</span><br>Score: ${(p.risk_score*100).toFixed(0)}%<br>${p.drivers}</div>`, { sticky: true })
+                        .addTo(LG.hotspots);
+                });
+                $("lc-hotspots").textContent = gj.features.length;
+            }
+
+            // ── TANKS ────────────────────────────────────────────────────────────────
+            on("btn-load-tanks", "click", async () => {
+                switchTab("tanks");
+                if (!S.scenarioId) return;
+                try {
+                    const d = await api(`/dma/${encodeURIComponent(S.file)}/simulate/${S.scenarioId}/tanks`);
+                    renderTanks(d);
+                } catch (e) { $("tanks-ph").textContent = "Failed: " + e.message; }
+            });
+
+            function renderTanks(d) {
+                $("tanks-ph").style.display = "none";
+                $("tanks-content").style.display = "block";
+                if (!d.tanks?.length) { $("tank-panels").innerHTML =
+                        "<p style='color:var(--faint);font-size:11px'>No tank data in this simulation.</p>"; return; }
+                $("tank-panels").innerHTML = d.tanks.map(t => `
+                    <div style="margin-bottom:16px">
+                      <div class="sh" style="margin-top:0">${t.tank_id}</div>
+                      <canvas id="tank-${t.tank_id.replace(/\W/g,"_")}" height="100"></canvas>
+                    </div>`).join("");
+                d.tanks.forEach(t => {
+                    const cid = "tank-" + t.tank_id.replace(/\W/g, "_");
+                    const hours = t.series.map(s => s.hour);
+                    const vols = t.series.map(s => s.volume_m3 || 0);
+                    drawLineChart(cid, hours, [{ label: "Volume m³", color: "var(--blue)", values: vols }]);
+                });
+            }
+
+            // ── CHARTS (modal) ──────────────────────────────────────────────────────
+            function maybeUnlockPostSimTabs() {
+                if (!S.scenarioId) return;
+                $("charts-ph").style.display = "none";
+                $("charts-content").style.display = "block";
+                $("report-ph").style.display = "none";
+                $("report-content").style.display = "block";
+            }
+
+            on("btn-plot-pressure", "click", async () => {
+                showErr("err-charts", null);
+                if (!S.scenarioId) { showErr("err-charts", "Run a simulation first."); return; }
+                const ids = $("chart-node-ids").value.trim();
+                const qs = ids ? `?nodes=${encodeURIComponent(ids)}` : "";
+                try {
+                    const blob = await apiBlob(`/simulate/${S.scenarioId}/plots/pressure${qs}`);
+                    setChartImage(blob, "📊 Node Pressure Over Time");
+                } catch (e) { setChartError("Pressure chart failed: " + e.message);
+                    showErr("err-charts", "Chart failed: " + e.message); }
+            });
+
+            on("btn-plot-flow", "click", async () => {
+                showErr("err-charts", null);
+                if (!S.scenarioId) { showErr("err-charts", "Run a simulation first."); return; }
+                const ids = $("chart-link-ids").value.trim();
+                const qs = ids ? `?links=${encodeURIComponent(ids)}` : "";
+                try {
+                    const blob = await apiBlob(`/simulate/${S.scenarioId}/plots/flow${qs}`);
+                    setChartImage(blob, "📊 Link Flow Rate Over Time");
+                } catch (e) { setChartError("Flow chart failed: " + e.message);
+                    showErr("err-charts", "Chart failed: " + e.message); }
+            });
+
+            // ── REPORT ───────────────────────────────────────────────────────────────
+            async function loadReportSummary() {
+                showErr("err-report", null);
+                if (!S.scenarioId) return;
+                try {
+                    const d = await api(`/simulate/${S.scenarioId}/report/summary`);
+                    const fb = d.flow_balance;
+                    $("report-nrw-grid").innerHTML = `
+                        <div class="stat"><div class="v ${fb.nrw_pct>30?"red":fb.nrw_pct>20?"amber":"green"}">${fb.nrw_pct}%</div><div class="l">NRW</div></div>
+                        <div class="stat"><div class="v">${fb.total_inflow_m3h}</div><div class="l">Inflow m³/h</div></div>
+                        <div class="stat"><div class="v">${fb.consumer_demand_m3h}</div><div class="l">Demand m³/h</div></div>
+                        <div class="stat"><div class="v ${d.balanced?"green":"red"}">${d.balanced?"YES":"NO"}</div><div class="l">Balanced</div></div>`;
+                    $("report-warnings").innerHTML = (d.warnings || []).map(w => `
+                        <div style="color:var(--amber);font-size:10.5px;font-family:var(--mono);margin-top:5px;padding:6px 8px;border:1px solid var(--amber2);border-radius:3px">⚠ ${w}</div>`)
+                        .join("");
+                } catch (e) { showErr("err-report", "No report available: " + e.message); }
+            }
+
+            on("btn-load-report", "click", async () => {
+                showErr("err-report", null);
+                if (!S.scenarioId) { showErr("err-report", "Run a simulation first."); return; }
+                try {
+                    const txt = await apiText(`/simulate/${S.scenarioId}/report`);
+                    $("report-raw").textContent = txt;
+                    openReportModal();
+                } catch (e) { showErr("err-report", "Failed to load report: " + e.message); }
+            });
+
+            on("btn-download-report", "click", async () => {
+                showErr("err-report", null);
+                if (!S.scenarioId) { showErr("err-report", "Run a simulation first."); return; }
+                try {
+                    const blob = await apiBlob(`/simulate/${S.scenarioId}/report/download`);
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `scenario_${S.scenarioId}.rpt`;
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    URL.revokeObjectURL(url);
+                } catch (e) { showErr("err-report", "Download failed: " + e.message); }
+            });
+
+            // ── shared chart ────────────────────────────────────────────────────────
+            function drawLineChart(canvasId, xLabels, series) {
+                const canvas = $(canvasId);
+                if (!canvas) return;
+                const ctx = canvas.getContext("2d");
+                canvas.width = canvas.offsetWidth || 360;
+                const W = canvas.width,
+                    H = canvas.height;
+                const pad = { t: 10, r: 8, b: 24, l: 42 };
+                ctx.fillStyle = "#060c10";
+                ctx.fillRect(0, 0, W, H);
+                const allVals = series.flatMap(s => s.values.filter(v => v != null));
+                const maxVal = Math.max(...allVals, 1);
+                const sx = i => pad.l + (i / (xLabels.length - 1 || 1)) * (W - pad.l - pad.r);
+                const sy = v => pad.t + (1 - v / maxVal) * (H - pad.t - pad.b);
+                ctx.strokeStyle = "#1a2c3a";
+                ctx.lineWidth = 1;
+                [0.25, 0.5, 0.75, 1].forEach(f => {
+                    const y = sy(f * maxVal);
+                    ctx.beginPath();
+                    ctx.moveTo(pad.l, y);
+                    ctx.lineTo(W - pad.r, y);
+                    ctx.stroke();
+                    ctx.fillStyle = "#3d5560";
+                    ctx.font = "9px monospace";
+                    ctx.fillText((f * maxVal).toFixed(1), 2, y + 3);
+                });
+                series.forEach((s, si) => {
+                    const col = getComputedStyle(document.documentElement).getPropertyValue(s.color.replace(
+                        /var\(|\)/g, "").trim()).trim() || s.color;
+                    ctx.beginPath();
+                    ctx.strokeStyle = col;
+                    ctx.lineWidth = si === 0 ? 2 : 1.5;
+                    if (s.dash) ctx.setLineDash([3, 3]);
+                    else ctx.setLineDash([]);
+                    s.values.forEach((v, i) => { const x = sx(i),
+                            y = sy(v ?? 0);
+                        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                });
+                ctx.fillStyle = "#3d5560";
+                ctx.font = "9px monospace";
+                xLabels.filter((_, i) => i % 4 === 0).forEach((l, i, arr) => { ctx.fillText(l + "h", sx(i * 4) -
+                        6, H - 6); });
+            }
+
+            // ── init ──────────────────────────────────────────────────────────────────
+            renderEventLists();
+
+        })();
+    </script>
 </body>
 </html>

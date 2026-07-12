@@ -71,6 +71,28 @@ class SimulateRequest(BaseModel):
     duration_hrs:   int         = Field(24,  ge=1, le=168)
     time_step_min:  int         = Field(60,  ge=5, le=240)
     reservoir_head: float       = Field(50.0, gt=0, description="Reservoir head in metres")
+
+    demand_model: str = Field(
+        "DDA",
+        pattern="^(DDA|PDA)$",
+        description=(
+            "Hydraulic demand model: 'DDA' (demand-driven analysis, default) or "
+            "'PDA' (pressure-driven analysis)."
+        ),
+    )
+    pda_pressure_min: float = Field(
+        0.0, ge=0,
+        description="PDA only: pressure (m) below which delivered demand is zero.",
+    )
+    pda_pressure_required: float = Field(
+        0.1, gt=0,
+        description="PDA only: pressure (m) at/above which full demand is delivered.",
+    )
+    pda_pressure_exponent: float = Field(
+        0.5, gt=0,
+        description="PDA only: exponent in the pressure-demand relationship.",
+    )
+
     leak_events:    Optional[List[LeakEvent]] = Field(
         None,
         description=(
@@ -108,6 +130,12 @@ class SimulateRequest(BaseModel):
             raise ValueError("reservoir_lat and reservoir_lon are required when pipe_ids is set")
         return self
 
+    @model_validator(mode="after")
+    def _check_pda_pressures(self):
+        if self.demand_model == "PDA" and self.pda_pressure_required <= self.pda_pressure_min:
+            raise ValueError("pda_pressure_required must be greater than pda_pressure_min")
+        return self
+
 
 class ScenarioResponse(BaseModel):
     id:             int
@@ -119,6 +147,10 @@ class ScenarioResponse(BaseModel):
     duration_hrs:   int
     time_step_min:  int
     reservoir_head: float
+    demand_model:   str
+    pda_pressure_min:      float
+    pda_pressure_required: float
+    pda_pressure_exponent: float
     pipe_ids:       Optional[List[int]]
     reservoir_lat:  Optional[float]
     reservoir_lon:  Optional[float]
@@ -241,6 +273,10 @@ async def create_simulation(
         time_step_min  = body.time_step_min,
         reservoir_head = body.reservoir_head,
         extra_demands  = extra_demands,
+        demand_model          = body.demand_model,
+        pda_pressure_min      = body.pda_pressure_min,
+        pda_pressure_required = body.pda_pressure_required,
+        pda_pressure_exponent = body.pda_pressure_exponent,
         pipe_ids          = body.pipe_ids,
         reservoir_lat     = body.reservoir_lat,
         reservoir_lon     = body.reservoir_lon,

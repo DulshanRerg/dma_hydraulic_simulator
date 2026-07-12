@@ -51,6 +51,12 @@ class SimScenario(Base):
         nullable=False
     )
 
+    # demand model: "DDA" (demand-driven, default) or "PDA" (pressure-driven)
+    demand_model:          Mapped[str]   = mapped_column(String(8), default="DDA", nullable=False)
+    pda_pressure_min:      Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    pda_pressure_required: Mapped[float] = mapped_column(Float, default=0.1, nullable=False)
+    pda_pressure_exponent: Mapped[float] = mapped_column(Float, default=0.5, nullable=False)
+
     # lifecycle
     status:          Mapped[str]            = mapped_column(String(20), default="PENDING")
     error_message:   Mapped[Optional[str]]  = mapped_column(Text, nullable=True)

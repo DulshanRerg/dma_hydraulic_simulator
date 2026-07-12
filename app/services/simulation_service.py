@@ -82,6 +82,11 @@ def run_simulation(
     actuator_events:  Optional[list] = None,
     model_uncertainty = None,
     sensor_noise      = None,
+    # demand model: "DDA" (demand-driven, default) or "PDA" (pressure-driven)
+    demand_model:          str   = "DDA",
+    pda_pressure_min:      float = 0.0,
+    pda_pressure_required: float = 0.1,
+    pda_pressure_exponent: float = 0.5,
 ) -> SimulationOutput:
     """
     Run an EPyT-Flow simulation.
@@ -98,9 +103,14 @@ def run_simulation(
     actuator_events  : pre-built ActuatorEvent objects
     model_uncertainty: ModelUncertainty object (demand/roughness perturbation)
     sensor_noise     : SensorNoise object (Gaussian noise on readings)
+    demand_model          : "DDA" (demand-driven analysis, default) or
+                             "PDA" (pressure-driven analysis)
+    pda_pressure_min      : minimum pressure below which demand is zero (PDA only)
+    pda_pressure_required : pressure at/above which full demand is delivered (PDA only)
+    pda_pressure_exponent : exponent in the pressure-demand relationship (PDA only)
     """
     try:
-        from epyt_flow.simulation import ScenarioSimulator
+        from epyt_flow.simulation import ScenarioSimulator, EpanetConstants
         from epyt_flow.simulation.events import AbruptLeakage
     except ImportError as exc:
         raise RuntimeError("epyt-flow is not installed.") from exc
@@ -108,6 +118,20 @@ def run_simulation(
     settings      = get_settings()
     duration_sec  = duration_hrs  * 3600
     time_step_sec = time_step_min * 60
+
+    # ── demand model ───────────────────────────────────────────────────────────
+    demand_model_norm = (demand_model or "DDA").strip().upper()
+    if demand_model_norm not in ("DDA", "PDA"):
+        logger.warning("Unknown demand_model %r — falling back to DDA", demand_model)
+        demand_model_norm = "DDA"
+
+    demand_model_dict = {
+        "type":               EpanetConstants.EN_PDA if demand_model_norm == "PDA"
+                               else EpanetConstants.EN_DDA,
+        "pressure_min":       pda_pressure_min,
+        "pressure_required":  pda_pressure_required,
+        "pressure_exponent":  pda_pressure_exponent,
+    }
 
     # ── convert legacy leak_events dicts ──────────────────────────────────────
     all_leakages = list(leakage_objects or [])
@@ -123,8 +147,8 @@ def run_simulation(
             logger.warning("Skipping legacy leak event: %s", e)
 
     logger.info(
-        "EPyT-Flow run: %s | %dh / %dmin | leaks=%d faults=%d actuators=%d unc=%s noise=%s",
-        inp_path, duration_hrs, time_step_min,
+        "EPyT-Flow run: %s | %dh / %dmin | demand_model=%s leaks=%d faults=%d actuators=%d unc=%s noise=%s",
+        inp_path, duration_hrs, time_step_min, demand_model_norm,
         len(all_leakages),
         len(sensor_faults or []),
         len(actuator_events or []),
@@ -146,6 +170,7 @@ def run_simulation(
             simulation_duration = duration_sec,
             hydraulic_time_step = time_step_sec,
             reporting_time_step = time_step_sec,
+            demand_model        = demand_model_dict,
         )
         sc = probe.sensor_config
         all_node_ids  = list(sc.nodes)
@@ -186,6 +211,7 @@ def run_simulation(
             simulation_duration = duration_sec,
             hydraulic_time_step = time_step_sec,
             reporting_time_step = time_step_sec,
+            demand_model        = demand_model_dict,
         )
 
         # ── sensors: everything ───────────────────────────────────────────────
@@ -341,6 +367,10 @@ def run_simulation(
         "duration_hrs":         duration_hrs,
         "time_steps":           n_steps,
         "engine":               "EPyT-Flow v0.17.1",
+        "demand_model":         demand_model_norm,
+        "pda_pressure_min":       pda_pressure_min      if demand_model_norm == "PDA" else None,
+        "pda_pressure_required":  pda_pressure_required if demand_model_norm == "PDA" else None,
+        "pda_pressure_exponent":  pda_pressure_exponent if demand_model_norm == "PDA" else None,
     }
 
     logger.info(

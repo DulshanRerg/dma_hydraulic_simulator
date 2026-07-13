@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-    <title>DUWASA DMA Hydraulic Explorer</title>
+    <title>DMA Hydraulic Explorer</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js">
     </script>
@@ -77,14 +77,14 @@
             font-family: var(--mono)
         }
 
-        /* tabs */
+        /* tabs — now only 3 */
         #tabs {
             display: flex;
             border-bottom: 1px solid var(--border);
             overflow-x: auto
         }
         .tab {
-            flex: 0 0 auto;
+            flex: 1 0 auto;
             padding: 8px 12px;
             font-size: 9.5px;
             letter-spacing: .07em;
@@ -93,7 +93,8 @@
             color: var(--dim);
             cursor: pointer;
             border-bottom: 2px solid transparent;
-            white-space: nowrap
+            white-space: nowrap;
+            text-align: center
         }
         .tab.active {
             color: var(--cyan);
@@ -286,6 +287,9 @@
             margin: 14px 0 8px;
             padding-bottom: 4px;
             border-bottom: 1px solid var(--border)
+        }
+        .sh:first-of-type {
+            margin-top: 0
         }
 
         /* layer controls */
@@ -731,51 +735,72 @@
                 max-height: 75vh;
             }
         }
+
+        /* small helper */
+        .mt-8 {
+            margin-top: 8px
+        }
+        .mt-12 {
+            margin-top: 12px
+        }
+        .mb-8 {
+            margin-bottom: 8px
+        }
+        .mb-12 {
+            margin-bottom: 12px
+        }
+        .hidden {
+            display: none !important
+        }
     </style>
 </head>
 <body>
     <div id="app">
         <aside id="sidebar">
             <div id="sb-head">
-                <h1>DUWASA · DMA HYDRAULIC EXPLORER</h1>
+                <h1> DMA HYDRAULIC EXPLORER</h1>
                 <p>EPyT-Flow v0.17 · EPANET extended-period simulation</p>
             </div>
             <div id="tabs">
                 <div class="tab active" data-tab="setup">SETUP</div>
-                <div class="tab" data-tab="layers">LAYERS</div>
                 <div class="tab" data-tab="simulate">SIMULATE</div>
-                <div class="tab" data-tab="events">EVENTS</div>
-                <div class="tab" data-tab="leakage">LEAKAGE</div>
-                <div class="tab" data-tab="tanks">TANKS</div>
-                <div class="tab" data-tab="charts">CHARTS</div>
-                <div class="tab" data-tab="report">REPORT</div>
+                <div class="tab" data-tab="analysis">ANALYSIS</div>
             </div>
             <div id="sb-body">
 
-                <!-- ── SETUP ── -->
+                <!-- ── TAB 1: SETUP ── (Setup + Layers) ───────────────────────── -->
                 <div class="tab-pane active" id="tab-setup">
-                    <div class="field"><label>SERVICE URL</label><input id="api-base" value="http://localhost:8080" /></div>
-                    <div class="field"><label>API KEY</label><input id="api-key" type="password" placeholder="X-API-Key" /></div>
+                    <!-- Setup block -->
+                    <div class="field"><label>SERVICE URL</label><input id="api-base" value="http://localhost:8080" hidden /></div>
+                    <div class="field"><label>API KEY</label><input id="api-key" type="password" value="change-me-key-2" hidden /></div>
                     <button class="btn primary" id="btn-connect">Connect to service</button>
                     <div class="field" style="margin-top:12px"><label>GPKG FILE</label>
                         <select id="file-select"><option>— connect first —</option></select>
                     </div>
                     <button class="btn" id="btn-load-layers" disabled>Load DMA onto map</button>
+
+                    <div class="field" style="margin-top:16px">
+                        <label>UPLOAD NEW DMA FILE (.gpkg or .zip)</label>
+                        <input type="file" id="upload-file-input" accept=".gpkg,.zip" disabled />
+                    </div>
+                    <button class="btn" id="btn-upload" disabled>Upload &amp; register</button>
+                    <div id="upload-progress" style="display:none;font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px"></div>
+                    <div id="upload-result" style="display:none;font-family:var(--mono);font-size:11px;margin-top:6px"></div>
                     <div id="setup-stats" style="display:none">
                         <div class="statgrid" id="setup-statgrid"></div>
                         <div id="conn-alert" class="conn-alert" style="display:none"></div>
                     </div>
                     <div id="err-setup" class="err"></div>
-                </div>
 
-                <!-- ── LAYERS ── -->
-                <div class="tab-pane" id="tab-layers">
-                    <p class="sh">Visible layers</p>
+                    <!-- Layers block (merged) -->
+                    <p class="sh" style="margin-top:18px">Visible layers</p>
                     <div id="layer-controls"><p style="color:var(--faint);font-size:11px">Load a DMA file first</p></div>
                 </div>
 
-                <!-- ── SIMULATE ── -->
+                <!-- ── TAB 2: SIMULATE ── (Simulate + Events) ──────────────────── -->
                 <div class="tab-pane" id="tab-simulate">
+
+                    <!-- ── SIMULATION PARAMS ── -->
                     <p class="sh">Simulation parameters</p>
                     <div class="row2">
                         <div class="field"><label>DURATION (hrs)</label><input type="number" id="sim-duration" value="24" /></div>
@@ -805,7 +830,6 @@
                         <div style="background:var(--panel2);border:1px solid var(--border2);border-radius:3px;padding:7px 10px;font-size:10.5px;color:var(--dim)">
                             <span style="color:var(--text);font-family:var(--mono);font-weight:700">Advanced mode</span> —
                             <span id="esb-counts"></span>
-                            <span style="color:var(--cyan);cursor:pointer;margin-left:8px;font-family:var(--mono)" onclick="switchTab('events')">[edit events →]</span>
                         </div>
                     </div>
 
@@ -819,11 +843,9 @@
                         </div>
                     </div>
                     <div id="err-sim" class="err"></div>
-                </div>
 
-                <!-- ── EVENTS ── -->
-                <div class="tab-pane" id="tab-events">
-                    <p class="sh">Leakage events</p>
+                    <!-- ── EVENTS ── -->
+                    <p class="sh" style="margin-top:18px">Leakage events</p>
                     <div id="ev-leakage-list"></div>
                     <div class="row2" style="gap:6px">
                         <div class="field"><label>PIPE ID</label><input id="ev-lk-pipe" placeholder="E_42" /></div>
@@ -893,13 +915,15 @@
                     <button class="btn" id="btn-clear-events" style="margin-top:4px">Clear all events</button>
                 </div>
 
-                <!-- ── LEAKAGE ── -->
-                <div class="tab-pane" id="tab-leakage">
-                    <p style="color:var(--faint);font-size:11px" id="leakage-ph">Run a simulation first, then click "Leakage analysis →"</p>
+                <!-- ── TAB 3: ANALYSIS ── (Leakage + Tanks + Charts + Report) ── -->
+                <div class="tab-pane" id="tab-analysis">
+
+                    <!-- ── LEAKAGE ── -->
+                    <p class="sh">Leakage analysis</p>
+                    <p style="color:var(--faint);font-size:11px" id="leakage-ph">Run a simulation first, then click "Leakage analysis →" in the Simulate tab.</p>
                     <div id="leakage-content" style="display:none">
-                        <p class="sh">NON-REVENUE WATER</p>
                         <div class="statgrid" id="nrw-grid"></div>
-                        <p class="sh">PRESSURE ZONES</p>
+                        <p class="sh" style="margin-top:14px">PRESSURE ZONES</p>
                         <div id="pzones"></div>
                         <p class="sh">FLOW BALANCE (hourly)</p>
                         <canvas id="balance-chart" height="130"></canvas>
@@ -907,46 +931,48 @@
                         <div id="risk-list"></div>
                         <div id="leakage-warnings"></div>
                     </div>
-                </div>
 
-                <!-- ── TANKS ── -->
-                <div class="tab-pane" id="tab-tanks">
-                    <p style="color:var(--faint);font-size:11px" id="tanks-ph">Run a simulation first, then click "Tank volumes →"</p>
-                    <div id="tanks-content" style="display:none">
-                        <p class="sh">TANK WATER VOLUMES</p>
-                        <div id="tank-panels"></div>
-                    </div>
-                </div>
-
-                <!-- ── CHARTS ── -->
-                <div class="tab-pane" id="tab-charts">
-                    <p style="color:var(--faint);font-size:11px" id="charts-ph">Run a simulation first to generate charts.</p>
-                    <div id="charts-content" style="display:none">
-                        <p class="sh">NODE PRESSURE OVER TIME</p>
-                        <div class="field"><label>NODE IDS (comma-separated, blank = all)</label><input id="chart-node-ids" placeholder="13,16,22,30" /></div>
-                        <button class="btn" id="btn-plot-pressure">Generate pressure chart</button>
-
-                        <p class="sh" style="margin-top:16px">LINK FLOW RATE OVER TIME</p>
-                        <div class="field"><label>LINK IDS (comma-separated, blank = all)</label><input id="chart-link-ids" placeholder="1,2" /></div>
-                        <button class="btn" id="btn-plot-flow">Generate flow chart</button>
-
-                        <div id="err-charts" class="err"></div>
-                    </div>
-                </div>
-
-                <!-- ── REPORT ── -->
-                <div class="tab-pane" id="tab-report">
-                    <p style="color:var(--faint);font-size:11px" id="report-ph">Run a simulation first, then load the EPANET .rpt report.</p>
-                    <div id="report-content" style="display:none">
-                        <p class="sh">EPANET FLOW BALANCE</p>
-                        <div class="statgrid" id="report-nrw-grid"></div>
-                        <div class="row2" style="margin-top:8px;gap:6px">
-                            <button class="btn" id="btn-load-report">View full .rpt</button>
-                            <button class="btn" id="btn-download-report">Download .rpt</button>
+                    <!-- ── TANKS ── -->
+                    <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px">
+                        <p class="sh">Tank volumes</p>
+                        <p style="color:var(--faint);font-size:11px" id="tanks-ph">Run a simulation first, then click "Tank volumes →" in the Simulate tab.</p>
+                        <div id="tanks-content" style="display:none">
+                            <div id="tank-panels"></div>
                         </div>
-                        <div id="report-warnings" style="margin-top:8px"></div>
                     </div>
-                    <div id="err-report" class="err"></div>
+
+                    <!-- ── CHARTS ── -->
+                    <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px">
+                        <p class="sh">Graphs / Charts</p>
+                        <p style="color:var(--faint);font-size:11px" id="charts-ph">Run a simulation first to generate charts.</p>
+                        <div id="charts-content" style="display:none">
+                            <p class="sh">NODE PRESSURE OVER TIME</p>
+                            <div class="field"><label>NODE IDS (comma-separated, blank = all)</label><input id="chart-node-ids" placeholder="13,16,22,30" /></div>
+                            <button class="btn" id="btn-plot-pressure">Generate pressure chart</button>
+
+                            <p class="sh" style="margin-top:16px">LINK FLOW RATE OVER TIME</p>
+                            <div class="field"><label>LINK IDS (comma-separated, blank = all)</label><input id="chart-link-ids" placeholder="1,2" /></div>
+                            <button class="btn" id="btn-plot-flow">Generate flow chart</button>
+
+                            <div id="err-charts" class="err"></div>
+                        </div>
+                    </div>
+
+                    <!-- ── REPORT ── -->
+                    <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px">
+                        <p class="sh">EPANET Report</p>
+                        <p style="color:var(--faint);font-size:11px" id="report-ph">Run a simulation first, then load the EPANET .rpt report.</p>
+                        <div id="report-content" style="display:none">
+                            <div class="statgrid" id="report-nrw-grid"></div>
+                            <div class="row2" style="margin-top:8px;gap:6px">
+                                <button class="btn" id="btn-load-report">View full .rpt</button>
+                                <button class="btn" id="btn-download-report">Download .rpt</button>
+                            </div>
+                            <div id="report-warnings" style="margin-top:8px"></div>
+                        </div>
+                        <div id="err-report" class="err"></div>
+                    </div>
+
                 </div>
 
             </div>
@@ -963,7 +989,7 @@
             </div>
         </div>
 
-        <!-- ── CHART MODAL (larger) ── -->
+        <!-- ── CHART MODAL ── -->
         <div id="chart-modal-overlay">
             <div id="chart-modal">
                 <div id="chart-modal-head">
@@ -992,16 +1018,6 @@
         </main>
     </div>
 
-    <style>
-        .err {
-            color: var(--red);
-            font-size: 10.5px;
-            margin-top: 6px;
-            font-family: var(--mono);
-            display: none
-        }
-    </style>
-
     <script>
         (function() {
             "use strict";
@@ -1017,7 +1033,7 @@
                 connectorGJ: null,
                 leakageData: null,
                 events: { leakages: [], sensor_faults: [], actuator_events: [] },
-                chartObjectURL: null, // for cleanup
+                chartObjectURL: null,
             };
 
             // ── map ────────────────────────────────────────────────────────────────
@@ -1091,7 +1107,6 @@
                 const overlay = $("chart-modal-overlay");
                 overlay.classList.remove("open");
                 document.body.style.overflow = "";
-                // revoke object URL to free memory
                 if (S.chartObjectURL) {
                     URL.revokeObjectURL(S.chartObjectURL);
                     S.chartObjectURL = null;
@@ -1099,7 +1114,6 @@
             }
 
             function setChartImage(blob, title) {
-                // revoke previous URL
                 if (S.chartObjectURL) {
                     URL.revokeObjectURL(S.chartObjectURL);
                     S.chartObjectURL = null;
@@ -1118,7 +1132,6 @@
                 openChartModal("❌ Chart error");
             }
 
-            // close chart modal on overlay click or close button
             on("chart-modal-close", "click", closeChartModal);
             on("chart-modal-overlay", "click", e => {
                 if (e.target.id === "chart-modal-overlay") closeChartModal();
@@ -1138,17 +1151,13 @@
             on("report-modal-overlay", "click", e => { if (e.target.id === "report-modal-overlay") closeReportModal(); });
 
             // ── SETUP ────────────────────────────────────────────────────────────────
-            on("btn-connect", "click", async () => {
-                showErr("err-setup", null);
-                S.apiBase = $("api-base").value.trim();
-                S.apiKey = $("api-key").value.trim();
+            async function refreshFileList(selectName) {
                 const sel = $("file-select");
                 sel.innerHTML = "<option>⏳ loading…</option>";
                 sel.disabled = true;
                 $("btn-load-layers").disabled = true;
                 $("btn-run-sim").disabled = true;
                 try {
-                    await fetch(S.apiBase + "/health");
                     const files = await api("/files");
                     let fileList = [];
                     if (Array.isArray(files)) {
@@ -1174,14 +1183,86 @@
                             o.textContent = f;
                             sel.appendChild(o);
                         });
-                        S.file = fileList[0];
+                        if (selectName && fileList.includes(selectName)) sel.value = selectName;
+                        S.file = sel.value;
                         $("btn-load-layers").disabled = false;
                         $("btn-run-sim").disabled = false;
                     }
                     sel.disabled = false;
-                } catch (e) { showErr("err-setup", "Connect failed: " + e.message);
+                    return true;
+                } catch (e) {
+                    showErr("err-setup", "Could not load file list: " + e.message);
                     sel.innerHTML = '<option value="">— error —</option>';
-                    sel.disabled = false; }
+                    sel.disabled = false;
+                    return false;
+                }
+            }
+
+            on("btn-connect", "click", async () => {
+                showErr("err-setup", null);
+                S.apiBase = $("api-base").value.trim();
+                S.apiKey = $("api-key").value.trim();
+                try {
+                    await fetch(S.apiBase + "/health");
+                    const ok = await refreshFileList();
+                    $("upload-file-input").disabled = !ok;
+                    $("btn-upload").disabled = !ok;
+                } catch (e) {
+                    showErr("err-setup", "Connect failed: " + e.message);
+                    $("file-select").innerHTML = '<option value="">— error —</option>';
+                }
+            });
+
+            async function apiUpload(path, formData) {
+                const r = await fetch(S.apiBase.replace(/\/$/, "") + path, {
+                    method: "POST",
+                    headers: { "X-API-Key": S.apiKey },
+                    body: formData,
+                });
+                const body = await r.json().catch(() => null);
+                if (!r.ok) {
+                    const detail = body && body.detail ? JSON.stringify(body.detail) : r.statusText;
+                    throw new Error(`${r.status}: ${detail}`);
+                }
+                return body;
+            }
+
+            on("btn-upload", "click", async () => {
+                const input = $("upload-file-input");
+                const resultEl = $("upload-result");
+                const progressEl = $("upload-progress");
+                showErr("err-setup", null);
+                resultEl.style.display = "none";
+
+                const file = input.files && input.files[0];
+                if (!file) { showErr("err-setup", "Choose a .gpkg or .zip file first."); return; }
+                if (!/\.(gpkg|zip)$/i.test(file.name)) {
+                    showErr("err-setup", "Only .gpkg and .zip files are accepted.");
+                    return;
+                }
+
+                const fd = new FormData();
+                fd.append("file", file, file.name);
+
+                $("btn-upload").disabled = true;
+                progressEl.style.display = "block";
+                progressEl.textContent = `⏳ uploading ${file.name} (${(file.size/1024/1024).toFixed(1)} MB)…`;
+
+                try {
+                    const res = await apiUpload("/files/upload", fd);
+                    progressEl.style.display = "none";
+                    resultEl.style.display = "block";
+                    resultEl.style.color = res.has_dma_structure ? "var(--green)" : "var(--amber)";
+                    resultEl.textContent = res.message +
+                        (res.layers && res.layers.length ? `  ·  layers: ${res.layers.join(", ")}` : "");
+                    await refreshFileList(res.filename);
+                    input.value = "";
+                } catch (e) {
+                    progressEl.style.display = "none";
+                    showErr("err-setup", "Upload failed: " + e.message);
+                } finally {
+                    $("btn-upload").disabled = false;
+                }
             });
 
             on("btn-load-layers", "click", async () => {
@@ -1204,7 +1285,7 @@
                     $("map-legend").style.display = "block";
                     try { map.fitBounds(LG.pipes.getLayers()[0]?.getBounds() || LG.boundary.getLayers()[0]
                             ?.getBounds(), { padding: [24, 24] }); } catch (e) {}
-                    switchTab("layers");
+                    switchTab("setup");
                 } catch (e) { showErr("err-setup", e.message); }
             });
 
@@ -1563,20 +1644,27 @@
                     `<b>${count} synthetic connector${count>1?"s":""} added</b> (${totalLen}m total). Verify in field before using for investment decisions.`;
             }
 
-            // ── LEAKAGE ──────────────────────────────────────────────────────────────
+            // ── LEAKAGE (now in analysis tab) ─────────────────────────────────────
             on("btn-load-leakage", "click", async () => {
-                switchTab("leakage");
-                if (!S.scenarioId) return;
+                if (!S.scenarioId) { showErr("err-sim", "Run a simulation first."); return; }
                 try {
                     const d = await api(`/dma/${encodeURIComponent(S.file)}/simulate/${S.scenarioId}/leakage`);
                     S.leakageData = d;
                     renderLeakage(d);
-                } catch (e) { $("leakage-ph").textContent = "Failed: " + e.message; }
+                    // reveal the leakage section in analysis tab
+                    $("leakage-ph").style.display = "none";
+                    $("leakage-content").style.display = "block";
+                    switchTab("analysis");
+                    // scroll to leakage section
+                    setTimeout(() => {
+                        const el = document.querySelector("#tab-analysis .sh:first-of-type");
+                        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }, 100);
+                } catch (e) { $("leakage-ph").textContent = "Failed: " + e.message;
+                    $("leakage-ph").style.display = "block"; }
             });
 
             function renderLeakage(d) {
-                $("leakage-ph").style.display = "none";
-                $("leakage-content").style.display = "block";
                 const nrw = d.nrw;
                 const ilicol = nrw.ili > 8 ? "red" : nrw.ili > 4 ? "amber" : "green";
                 $("nrw-grid").innerHTML = `
@@ -1645,14 +1733,21 @@
                 $("lc-hotspots").textContent = gj.features.length;
             }
 
-            // ── TANKS ────────────────────────────────────────────────────────────────
+            // ── TANKS (now in analysis tab) ──────────────────────────────────────
             on("btn-load-tanks", "click", async () => {
-                switchTab("tanks");
-                if (!S.scenarioId) return;
+                if (!S.scenarioId) { showErr("err-sim", "Run a simulation first."); return; }
                 try {
                     const d = await api(`/dma/${encodeURIComponent(S.file)}/simulate/${S.scenarioId}/tanks`);
                     renderTanks(d);
-                } catch (e) { $("tanks-ph").textContent = "Failed: " + e.message; }
+                    $("tanks-ph").style.display = "none";
+                    $("tanks-content").style.display = "block";
+                    switchTab("analysis");
+                    setTimeout(() => {
+                        const el = document.querySelector("#tab-analysis .sh:contains('Tank volumes')");
+                        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }, 100);
+                } catch (e) { $("tanks-ph").textContent = "Failed: " + e.message;
+                    $("tanks-ph").style.display = "block"; }
             });
 
             function renderTanks(d) {
@@ -1799,6 +1894,16 @@
 
             // ── init ──────────────────────────────────────────────────────────────────
             renderEventLists();
+
+            // Override switchTab to scroll to top of the tab content
+            const origSwitch = switchTab;
+            window.switchTab = function(name) {
+                origSwitch(name);
+                setTimeout(() => {
+                    const pane = document.querySelector(`#tab-${name}`);
+                    if (pane) pane.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 50);
+            };
 
         })();
     </script>

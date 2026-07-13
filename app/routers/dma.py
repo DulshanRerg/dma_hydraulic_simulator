@@ -158,6 +158,10 @@ async def simulate_dma(
             time_step_min   = body.time_step_min,
             base_demand_m3h = body.base_demand_m3h,
             leakage_frac    = body.leakage_frac,
+            demand_model          = body.demand_model,
+            pda_pressure_min      = body.pda_pressure_min,
+            pda_pressure_required = body.pda_pressure_required,
+            pda_pressure_exponent = body.pda_pressure_exponent,
         )
     except Exception as e:
         logger.exception("DMA .inp build failed")
@@ -328,6 +332,10 @@ async def simulate_dma_advanced(
             time_step_min   = body.time_step_min,
             base_demand_m3h = body.base_demand_m3h,
             leakage_frac    = body.leakage_frac,
+            demand_model          = body.demand_model,
+            pda_pressure_min      = body.pda_pressure_min,
+            pda_pressure_required = body.pda_pressure_required,
+            pda_pressure_exponent = body.pda_pressure_exponent,
         )
     except Exception as e:
         logger.exception("DMA .inp build failed (advanced)")

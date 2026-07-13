@@ -115,9 +115,20 @@ def build_dma_inp(
     base_demand_m3h: float = _BASE_DEMAND_M3H,
     leakage_frac:    float = 0.20,
     snap_tol_m:      float = _SNAP_TOL_M,
+    demand_model:          str   = "DDA",
+    pda_pressure_min:      float = 0.0,
+    pda_pressure_required: float = 0.1,
+    pda_pressure_exponent: float = 0.5,
 ) -> Tuple[str, RepairReport]:
     """
     Build a fully-connected EPANET DMA model.
+
+    demand_model
+        "DDA" (default) or "PDA". When "PDA", the [OPTIONS] section
+        declares "Demand Model PDA" plus the pressure thresholds directly
+        in the .inp file itself — not just via the EPyT-Flow Python API —
+        so the model is genuinely pressure-driven regardless of whether
+        the runtime API call is honoured by the EPANET engine.
 
     Returns
     -------
@@ -320,6 +331,12 @@ def build_dma_inp(
     inp.raw("  Quality           Age")
     inp.raw("  Diffusivity       1")
     inp.raw("  Tolerance         0.01")
+    demand_model_norm = (demand_model or "DDA").strip().upper()
+    if demand_model_norm == "PDA":
+        inp.raw("  Demand Model      PDA")
+        inp.raw(f"  Minimum Pressure  {pda_pressure_min}")
+        inp.raw(f"  Required Pressure {pda_pressure_required}")
+        inp.raw(f"  Pressure Exponent {pda_pressure_exponent}")
 
     # COORDINATES — all nodes including TCV helper stubs
     inp.section("COORDINATES")

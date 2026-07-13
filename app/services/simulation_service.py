@@ -133,28 +133,10 @@ def run_simulation(
         "pressure_exponent":  pda_pressure_exponent,
     }
 
-    # ── convert legacy leak_events dicts ──────────────────────────────────────
-    all_leakages = list(leakage_objects or [])
-    for ev in (leak_events or []):
-        try:
-            all_leakages.append(AbruptLeakage(
-                link_id    = str(ev["node_id"]),  # legacy callers pass node_id
-                diameter   = float(ev.get("diameter", 0.015)),
-                start_time = int(ev.get("start_time", 0)),
-                end_time   = int(ev.get("end_time", duration_sec)),
-            ))
-        except Exception as e:
-            logger.warning("Skipping legacy leak event: %s", e)
-
-    logger.info(
-        "EPyT-Flow run: %s | %dh / %dmin | demand_model=%s leaks=%d faults=%d actuators=%d unc=%s noise=%s",
-        inp_path, duration_hrs, time_step_min, demand_model_norm,
-        len(all_leakages),
-        len(sensor_faults or []),
-        len(actuator_events or []),
-        model_uncertainty is not None,
-        sensor_noise is not None,
-    )
+    # Leak events are converted to AbruptLeakage objects further below, once
+    # pipe_topology is known (see "resolve leak events" after pass 1) —
+    # AbruptLeakage needs a pipe/link ID, and legacy callers here only give
+    # us a node_id (the junction nearest the reported leak location).
 
     # ── pass 1: probe network topology ───────────────────────────────────────
     node_coords:    Dict[str, Tuple[float, float]] = {}
@@ -179,30 +161,73 @@ def run_simulation(
         all_pump_ids  = [p for p in (getattr(sc, "pumps", []) or [])]
         all_valve_ids = [v for v in (getattr(sc, "valves", []) or [])]
 
-        api = probe.epanet_api
-        for nid in all_node_ids:
-            try:
-                idx  = api.getNodeIndex(nid)
-                c    = api.getNodeCoordinates(idx)
-                if c and len(c) >= 2 and (c[0] or c[1]):
-                    node_coords[nid] = (float(c[0]), float(c[1]))
-            except Exception:
-                pass
-
-        for pid in all_pipe_ids:
-            try:
-                idx   = api.getLinkIndex(pid)
-                nodes = api.getLinkNodesIndex(idx)
-                s_id  = api.getNodeNameID(nodes[0])
-                e_id  = api.getNodeNameID(nodes[1])
-                pipe_topology[pid] = (s_id, e_id)
-            except Exception:
-                pass
+    # Node coordinates and pipe topology come from parsing the .inp text
+    # directly (see inp_parser.py) rather than per-node/per-link EPANET API
+    # calls — the API's getNodeCoordinates(idx) does not return "node idx's
+    # coordinates" (idx there selects an X/Y dimension across the whole
+    # network, not a node), so a per-node loop over it silently fails for
+    # nearly every node and appears to leave the toolkit instance unable to
+    # reliably answer the subsequent link-topology queries either. The .inp
+    # this scenario was built from already has exact [COORDINATES] and
+    # [PIPES] sections (see dma_builder.build_dma_inp), so reading them back
+    # is both simpler and correct.
+    from app.services.inp_parser import parse_inp_coordinates, parse_inp_pipe_topology
+    node_coords.update(parse_inp_coordinates(inp_path))
+    pipe_topology.update(parse_inp_pipe_topology(inp_path))
 
     logger.info(
         "Probe: %d nodes (%d with coords), %d pipes, %d tanks, %d pumps, %d valves",
         len(all_node_ids), len(node_coords), len(all_pipe_ids),
         len(all_tank_ids), len(all_pump_ids), len(all_valve_ids),
+    )
+
+    # ── resolve leak events ───────────────────────────────────────────────────
+    # AbruptLeakage (and IncipientLeakage) attach to a pipe/link, not a node —
+    # EPANET models a leak as an orifice discharge along a specific pipe.
+    # Legacy callers here only know the *node* nearest the reported leak
+    # location (e.g. a lat/lon field report snapped to the nearest junction),
+    # so we resolve each node_id to one of its incident pipes using the
+    # topology just probed above, instead of passing the node_id straight
+    # through as a link_id (which EPANET would reject as an unknown link).
+    node_to_pipes: Dict[str, List[str]] = {}
+    for pid, (s_id, e_id) in pipe_topology.items():
+        node_to_pipes.setdefault(s_id, []).append(pid)
+        node_to_pipes.setdefault(e_id, []).append(pid)
+
+    all_leakages = list(leakage_objects or [])
+    skipped_no_pipe = 0
+    for ev in (leak_events or []):
+        try:
+            if ev.get("link_id"):
+                link_id = str(ev["link_id"])
+            else:
+                node_id = str(ev["node_id"])  # legacy callers pass node_id
+                incident = node_to_pipes.get(node_id)
+                if not incident:
+                    skipped_no_pipe += 1
+                    logger.warning(
+                        "Leak event at node %r has no incident pipe — skipped", node_id
+                    )
+                    continue
+                link_id = incident[0]
+            all_leakages.append(AbruptLeakage(
+                link_id    = link_id,
+                diameter   = float(ev.get("diameter", 0.015)),
+                start_time = int(ev.get("start_time", 0)),
+                end_time   = int(ev.get("end_time", duration_sec)),
+            ))
+        except Exception as e:
+            logger.warning("Skipping leak event: %s", e)
+
+    logger.info(
+        "EPyT-Flow run: %s | %dh / %dmin | demand_model=%s leaks=%d (skipped %d, no incident pipe) "
+        "faults=%d actuators=%d unc=%s noise=%s",
+        inp_path, duration_hrs, time_step_min, demand_model_norm,
+        len(all_leakages), skipped_no_pipe,
+        len(sensor_faults or []),
+        len(actuator_events or []),
+        model_uncertainty is not None,
+        sensor_noise is not None,
     )
 
     # ── pass 2: full simulation ───────────────────────────────────────────────
@@ -213,6 +238,19 @@ def run_simulation(
             reporting_time_step = time_step_sec,
             demand_model        = demand_model_dict,
         )
+
+        # Demand model (DDA/PDA) is set two ways, both confirmed to actually
+        # work (unlike a third approach that was tried and removed — the
+        # EPyT-Flow `epanet_api` object here is its own `EPyT` wrapper class,
+        # which does not expose a `setDemandModel` method, confirmed by an
+        # AttributeError in production logs):
+        #   1. sim.set_general_parameters(demand_model=...) just above,
+        #      EPyT-Flow's own documented API for this.
+        #   2. The .inp file's own [OPTIONS] section declares
+        #      "Demand Model PDA" directly when requested (see
+        #      dma_builder.build_dma_inp) — this is authoritative because
+        #      it's EPANET's native mechanism and doesn't depend on the
+        #      Python wrapper propagating the setting correctly.
 
         # ── sensors: everything ───────────────────────────────────────────────
         sim.place_pressure_sensors_everywhere()

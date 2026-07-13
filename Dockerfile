@@ -32,6 +32,7 @@ WORKDIR /app
 
 COPY --from=builder /venv /venv
 COPY app/ ./app/
+COPY frontend/ ./frontend/
 
 RUN mkdir -p /data/gpkg /data/db /tmp && \
     chown -R appuser:appuser /app /data

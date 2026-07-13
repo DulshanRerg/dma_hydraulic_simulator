@@ -1,6 +1,11 @@
 # render.yaml — Render Blueprint for the EPANET / EPyT-Flow DMA simulator
 # Docs: https://render.com/docs/blueprint-spec
 #
+# FREE-TIER VERSION: no persistent disk. Uploaded .gpkg files and the
+# SQLite DB (data/db/epanet_service.db) will be wiped on every redeploy
+# or restart. Re-upload your .gpkg data via POST /files/upload after
+# each deploy if you use this config.
+#
 # Deploy: push this file (and the rest of the repo) to GitHub, then in the
 # Render dashboard choose "New +" -> "Blueprint" and point it at the repo.
 
@@ -10,7 +15,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: starter          # free plan has no persistent disks - see note below
+    plan: free
     healthCheckPath: /health
     autoDeploy: true
     envVars:
@@ -24,7 +29,3 @@ services:
         value: EPANET Hydraulic Service
       - key: DEBUG
         value: "false"
-    disk:
-      name: epanet-data
-      mountPath: /data
-      sizeGB: 5

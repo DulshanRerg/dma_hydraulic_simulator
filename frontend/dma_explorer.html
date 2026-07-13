@@ -771,8 +771,8 @@
                 <!-- ── TAB 1: SETUP ── (Setup + Layers) ───────────────────────── -->
                 <div class="tab-pane active" id="tab-setup">
                     <!-- Setup block -->
-                    <div class="field"><label>SERVICE URL</label><input id="api-base" value="http://localhost:8080" hidden /></div>
-                    <div class="field"><label>API KEY</label><input id="api-key" type="password" value="change-me-key-2" hidden /></div>
+                    <div class="field"><label>SERVICE URL</label><input id="api-base" value="https://dma-hydraulic-simulator.onrender.com" hidden /></div>
+                    <div class="field"><label>API KEY</label><input id="api-key" type="password" placeholder="Enter API Key" /></div>
                     <button class="btn primary" id="btn-connect">Connect to service</button>
                     <div class="field" style="margin-top:12px"><label>GPKG FILE</label>
                         <select id="file-select"><option>— connect first —</option></select>
@@ -1024,7 +1024,7 @@
 
             // ── state ──────────────────────────────────────────────────────────────
             const S = {
-                apiBase: "http://localhost:8080",
+                apiBase: "https://dma-hydraulic-simulator.onrender.com",
                 apiKey: "",
                 file: null,
                 scenarioId: null,

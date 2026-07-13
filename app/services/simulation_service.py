@@ -195,11 +195,26 @@ def run_simulation(
         node_to_pipes.setdefault(e_id, []).append(pid)
 
     all_leakages = list(leakage_objects or [])
+    # A pipe can only carry one leak at a time (EPyT-Flow rejects a second
+    # AbruptLeakage on the same link). Track which pipes are already
+    # claimed — by explicitly-supplied leakage_objects, and by earlier
+    # events in this same loop — so two different leak nodes that happen
+    # to share an incident pipe don't both try to claim it. Without this,
+    # the second one only fails later, deep inside sim.add_leakage(), with
+    # a confusing "already a leak at pipe X" error.
+    used_pipes = {lk.link_id for lk in (leakage_objects or [])}
     skipped_no_pipe = 0
+    skipped_pipe_taken = 0
     for ev in (leak_events or []):
         try:
             if ev.get("link_id"):
                 link_id = str(ev["link_id"])
+                if link_id in used_pipes:
+                    skipped_pipe_taken += 1
+                    logger.warning(
+                        "Leak event link_id %r already has a leak — skipped", link_id
+                    )
+                    continue
             else:
                 node_id = str(ev["node_id"])  # legacy callers pass node_id
                 incident = node_to_pipes.get(node_id)
@@ -209,7 +224,16 @@ def run_simulation(
                         "Leak event at node %r has no incident pipe — skipped", node_id
                     )
                     continue
-                link_id = incident[0]
+                free_pipe = next((p for p in incident if p not in used_pipes), None)
+                if free_pipe is None:
+                    skipped_pipe_taken += 1
+                    logger.warning(
+                        "Leak event at node %r: all %d incident pipe(s) already "
+                        "have a leak — skipped", node_id, len(incident)
+                    )
+                    continue
+                link_id = free_pipe
+            used_pipes.add(link_id)
             all_leakages.append(AbruptLeakage(
                 link_id    = link_id,
                 diameter   = float(ev.get("diameter", 0.015)),
@@ -220,15 +244,17 @@ def run_simulation(
             logger.warning("Skipping leak event: %s", e)
 
     logger.info(
-        "EPyT-Flow run: %s | %dh / %dmin | demand_model=%s leaks=%d (skipped %d, no incident pipe) "
+        "EPyT-Flow run: %s | %dh / %dmin | demand_model=%s leaks=%d "
+        "(skipped %d no-incident-pipe, %d pipe-already-taken) "
         "faults=%d actuators=%d unc=%s noise=%s",
         inp_path, duration_hrs, time_step_min, demand_model_norm,
-        len(all_leakages), skipped_no_pipe,
+        len(all_leakages), skipped_no_pipe, skipped_pipe_taken,
         len(sensor_faults or []),
         len(actuator_events or []),
         model_uncertainty is not None,
         sensor_noise is not None,
     )
+
 
     # ── pass 2: full simulation ───────────────────────────────────────────────
     with ScenarioSimulator(f_inp_in=inp_path) as sim:
@@ -267,9 +293,11 @@ def run_simulation(
             sim.place_pump_state_sensors_everywhere()
 
         # ── leakage events ────────────────────────────────────────────────────
+        leaks_added = 0
         for lk in all_leakages:
             try:
                 sim.add_leakage(lk)
+                leaks_added += 1
             except Exception as e:
                 logger.warning("Could not add leakage %s: %s", lk, e)
 
@@ -394,7 +422,7 @@ def run_simulation(
         "total_demand_m3h":     _r3(sum(demands) * 3600.0 / n_steps) if demands and n_steps else None,
         "low_pressure_nodes":   sum(1 for n in output.node_results if n.is_low_pressure),
         "high_velocity_pipes":  0,
-        "leak_events_injected": len(all_leakages),
+        "leak_events_injected": leaks_added,
         "sensor_faults_applied":len(sensor_faults or []),
         "actuator_events":      len(actuator_events or []),
         "model_uncertainty":    model_uncertainty is not None,

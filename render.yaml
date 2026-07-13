@@ -1,0 +1,30 @@
+# render.yaml — Render Blueprint for the EPANET / EPyT-Flow DMA simulator
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Deploy: push this file (and the rest of the repo) to GitHub, then in the
+# Render dashboard choose "New +" -> "Blueprint" and point it at the repo.
+
+services:
+  - type: web
+    name: dma-hydraulic-simulator
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter          # free plan has no persistent disks - see note below
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: API_KEYS
+        sync: false        # set manually in the dashboard, don't commit real keys
+      - key: GPKG_DIR
+        value: /data/gpkg
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:////data/db/epanet_service.db
+      - key: SERVICE_NAME
+        value: EPANET Hydraulic Service
+      - key: DEBUG
+        value: "false"
+    disk:
+      name: epanet-data
+      mountPath: /data
+      sizeGB: 5

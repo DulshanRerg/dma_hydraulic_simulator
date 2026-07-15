@@ -774,18 +774,48 @@
                     <div class="field"><label>SERVICE URL</label><input id="api-base" value="https://dma-hydraulic-simulator.onrender.com" hidden /></div>
                     <div class="field"><label>API KEY</label><input id="api-key" type="password" placeholder="Enter API Key" /></div>
                     <button class="btn primary" id="btn-connect">Connect to service</button>
-                    <div class="field" style="margin-top:12px"><label>GPKG FILE</label>
-                        <select id="file-select"><option>— connect first —</option></select>
-                    </div>
-                    <button class="btn" id="btn-load-layers" disabled>Load DMA onto map</button>
 
-                    <div class="field" style="margin-top:16px">
-                        <label>UPLOAD NEW DMA FILE (.gpkg or .zip)</label>
-                        <input type="file" id="upload-file-input" accept=".gpkg,.zip" disabled />
+                    <div class="field" style="margin-top:14px">
+                        <label>DATA SOURCE</label>
+                        <div class="row2">
+                            <button class="btn" id="src-tog-gpkg" data-src="gpkg" style="border-color:var(--cyan2);color:var(--cyan)">GPKG (DMA rebuild)</button>
+                            <button class="btn" id="src-tog-inp" data-src="inp">.INP (direct)</button>
+                        </div>
+                        <p style="color:var(--faint);font-size:10px;margin-top:5px;line-height:1.5" id="src-hint">GIS layers are reconstructed into an EPANET model — some features (pumps, real valve types, controls) may not survive the rebuild.</p>
                     </div>
-                    <button class="btn" id="btn-upload" disabled>Upload &amp; register</button>
-                    <div id="upload-progress" style="display:none;font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px"></div>
-                    <div id="upload-result" style="display:none;font-family:var(--mono);font-size:11px;margin-top:6px"></div>
+
+                    <div id="gpkg-source-block">
+                        <div class="field" style="margin-top:12px"><label>GPKG FILE</label>
+                            <select id="file-select"><option>— connect first —</option></select>
+                        </div>
+                        <button class="btn" id="btn-load-layers" disabled>Load DMA onto map</button>
+
+                        <div class="field" style="margin-top:16px">
+                            <label>UPLOAD NEW DMA FILE (.gpkg or .zip)</label>
+                            <input type="file" id="upload-file-input" accept=".gpkg,.zip" disabled />
+                        </div>
+                        <button class="btn" id="btn-upload" disabled>Upload &amp; register</button>
+                        <div id="upload-progress" style="display:none;font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px"></div>
+                        <div id="upload-result" style="display:none;font-family:var(--mono);font-size:11px;margin-top:6px"></div>
+                    </div>
+
+                    <div id="inp-source-block" style="display:none">
+                        <div class="field" style="margin-top:12px"><label>INP FILE</label>
+                            <select id="inp-file-select"><option>— connect first —</option></select>
+                        </div>
+                        <div id="inp-file-info" style="display:none;font-family:var(--mono);font-size:10px;color:var(--dim);margin-bottom:8px;line-height:1.6"></div>
+                        <button class="btn" id="btn-load-inp-network" disabled>Load network onto map</button>
+                        <div id="inp-geo-warning" style="display:none;color:var(--amber);font-size:10px;font-family:var(--mono);margin-top:6px;padding:6px 8px;border:1px solid var(--amber2);border-radius:3px;line-height:1.5"></div>
+
+                        <div class="field" style="margin-top:16px">
+                            <label>UPLOAD NEW .INP FILE</label>
+                            <input type="file" id="inp-upload-input" accept=".inp" disabled />
+                        </div>
+                        <button class="btn" id="btn-inp-upload" disabled>Upload &amp; register</button>
+                        <div id="inp-upload-progress" style="display:none;font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:6px"></div>
+                        <div id="inp-upload-result" style="display:none;font-family:var(--mono);font-size:11px;margin-top:6px"></div>
+                    </div>
+
                     <div id="setup-stats" style="display:none">
                         <div class="statgrid" id="setup-statgrid"></div>
                         <div id="conn-alert" class="conn-alert" style="display:none"></div>
@@ -793,7 +823,7 @@
                     <div id="err-setup" class="err"></div>
 
                     <!-- Layers block (merged) -->
-                    <p class="sh" style="margin-top:18px">Visible layers</p>
+                    <p class="sh" style="margin-top:18px" id="layers-heading">Visible layers</p>
                     <div id="layer-controls"><p style="color:var(--faint);font-size:11px">Load a DMA file first</p></div>
                 </div>
 
@@ -806,10 +836,11 @@
                         <div class="field"><label>DURATION (hrs)</label><input type="number" id="sim-duration" value="24" /></div>
                         <div class="field"><label>TIME STEP (min)</label><input type="number" id="sim-timestep" value="60" /></div>
                     </div>
-                    <div class="row2">
+                    <div class="row2" id="gpkg-only-demand-row">
                         <div class="field"><label>BASE DEMAND (m³/h·node)</label><input type="number" id="sim-demand" value="0.011" step="0.001" /></div>
-                        <div class="field"><label>LEAKAGE FRACTION</label><input type="number" id="sim-leakage" value="0.20" step="0.01" /></div>
+                        <div class="field" id="leakage-frac-field" style="display:none"><label>LEAKAGE FRACTION <span style="color:var(--faint);font-weight:400">(Research only)</span></label><input type="number" id="sim-leakage" value="0.20" step="0.01" /></div>
                     </div>
+                    <div id="inp-only-demand-note" style="display:none;color:var(--faint);font-size:10px;margin-bottom:9px;line-height:1.5">Demand values and patterns come from the uploaded .inp's own [DEMANDS]/[PATTERNS] — not set here.</div>
                     <div class="field">
                         <label>DEMAND MODEL</label>
                         <select id="sim-demand-model">
@@ -824,7 +855,37 @@
                         </div>
                         <div class="field"><label>PRESSURE EXPONENT</label><input type="number" id="sim-pda-pexp" value="0.5" step="0.05" min="0.01" /></div>
                     </div>
-                    <div class="field"><label>SCENARIO NAME</label><input id="sim-name" value="DMA baseline" /></div>
+                    <div class="field"><label>SCENARIO NAME</label><input id="sim-name" value=" " /></div>
+
+                    <div class="field">
+                        <label>SCENARIO TYPE</label>
+                        <select id="sim-scenario-type">
+                            <option value="baseline" selected>Baseline (normal operating conditions)</option>
+                            <option value="reported_leak">Reported leak (a real leak reported by the main system)</option>
+                            <option value="planned_shutdown">Planned shutdown (valve/pump isolation, use Actuator events below)</option>
+                            <option value="fire_flow">Fire flow (high-demand test at a node)</option>
+                            <option value="research">Research (synthetic/random leaks for testing &amp; training data)</option>
+                        </select>
+                        <p id="scenario-type-hint" style="color:var(--faint);font-size:10px;margin-top:5px;line-height:1.5">No leak events are injected. Only what the network's own model/demands represent.</p>
+                    </div>
+
+                    <!-- Reported-leak entry, only relevant when SCENARIO TYPE = reported_leak -->
+                    <div id="reported-leak-block" style="display:none">
+                        <p class="sh">Reported leak(s)</p>
+                        <div id="ev-reported-leak-list"></div>
+                        <div class="row2" style="gap:6px">
+                            <div class="field"><label>PIPE ID (or leave blank + use NODE ID / LAT-LON)</label><input id="rl-pipe" placeholder="E_42" /></div>
+                            <div class="field"><label>NODE ID</label><input id="rl-node" placeholder="N_12" /></div>
+                        </div>
+                        <div class="row3">
+                            <div class="field"><label>Ø (m)</label><input type="number" id="rl-diam" value="0.02" step="0.001" /></div>
+                            <div class="field"><label>SEVERITY</label>
+                                <select id="rl-severity"><option value="">—</option><option value="minor">Minor</option><option value="moderate">Moderate</option><option value="major">Major</option></select>
+                            </div>
+                            <div class="field"><label>START (s)</label><input type="number" id="rl-t0" value="0" /></div>
+                        </div>
+                        <button class="btn" id="btn-add-reported-leak" style="margin-bottom:12px">+ Add reported leak</button>
+                    </div>
 
                     <div id="event-summary-bar" style="display:none;margin-bottom:8px">
                         <div style="background:var(--panel2);border:1px solid var(--border2);border-radius:3px;padding:7px 10px;font-size:10.5px;color:var(--dim)">
@@ -837,7 +898,7 @@
                     <div id="sim-status" class="status-bar" style="display:none"></div>
                     <div id="sim-summary" style="display:none">
                         <div class="statgrid" id="sim-statgrid"></div>
-                        <div class="row2" style="margin-top:8px;gap:6px">
+                        <div class="row2" style="margin-top:8px;gap:6px" id="gpkg-only-quicklinks">
                             <button class="btn" id="btn-load-leakage">Leakage analysis →</button>
                             <button class="btn" id="btn-load-tanks">Tank volumes →</button>
                         </div>
@@ -845,7 +906,8 @@
                     <div id="err-sim" class="err"></div>
 
                     <!-- ── EVENTS ── -->
-                    <p class="sh" style="margin-top:18px">Leakage events</p>
+                    <div id="gpkg-only-events">
+                    <p class="sh" style="margin-top:18px">Leakage events <span style="color:var(--faint);font-weight:400;font-size:10px">(synthetic — requires SCENARIO TYPE = Research)</span></p>
                     <div id="ev-leakage-list"></div>
                     <div class="row2" style="gap:6px">
                         <div class="field"><label>PIPE ID</label><input id="ev-lk-pipe" placeholder="E_42" /></div>
@@ -913,6 +975,7 @@
                         <div class="field"><label>SEED</label><input type="number" id="unc-seed" value="42" /></div>
                     </div>
                     <button class="btn" id="btn-clear-events" style="margin-top:4px">Clear all events</button>
+                    </div>
                 </div>
 
                 <!-- ── TAB 3: ANALYSIS ── (Leakage + Tanks + Charts + Report) ── -->
@@ -1006,6 +1069,7 @@
             <div class="map-toolbar" id="map-toolbar"></div>
             <div class="map-legend" id="map-legend" style="display:none">
                 <div class="leg-row"><div class="leg-line" style="background:var(--cyan)"></div>Pipes</div>
+                <div class="leg-row"><div class="leg-line" style="background:#3dbf72;height:3px"></div>Pump</div>
                 <div class="leg-row"><div class="leg-dot" style="background:#3dbf72"></div>Borehole / source</div>
                 <div class="leg-row"><div class="leg-dot" style="background:#50a0d8"></div>Storage tank</div>
                 <div class="leg-row"><div class="leg-dot" style="background:#e09a2a"></div>Valve</div>
@@ -1026,13 +1090,17 @@
             const S = {
                 apiBase: "https://dma-hydraulic-simulator.onrender.com",
                 apiKey: "",
+                sourceType: "gpkg",   // "gpkg" | "inp"
                 file: null,
+                inpFile: null,
+                inpFileInfo: null,
                 scenarioId: null,
                 pollTimer: null,
                 layers: {},
                 connectorGJ: null,
                 leakageData: null,
                 events: { leakages: [], sensor_faults: [], actuator_events: [] },
+                reportedLeaks: [],
                 chartObjectURL: null,
             };
 
@@ -1049,7 +1117,7 @@
 
             const LG = {};
             ["boundary", "pipes", "connectors", "sources", "tanks", "valves", "bulk_meters",
-                "sim_nodes", "sim_pipes", "hotspots"
+                "sim_nodes", "sim_pipes", "hotspots", "inp_pumps"
             ].forEach(n => { LG[n] = L.layerGroup().addTo(map); });
 
             // ── helpers ────────────────────────────────────────────────────────────
@@ -1207,11 +1275,256 @@
                     const ok = await refreshFileList();
                     $("upload-file-input").disabled = !ok;
                     $("btn-upload").disabled = !ok;
+                    await refreshInpFileList();
+                    $("inp-upload-input").disabled = false;
+                    $("btn-inp-upload").disabled = false;
+                    applySourceMode();
                 } catch (e) {
                     showErr("err-setup", "Connect failed: " + e.message);
                     $("file-select").innerHTML = '<option value="">— error —</option>';
                 }
             });
+
+            // ── DATA SOURCE TOGGLE (GPKG vs direct .inp) ────────────────────────────
+            function applySourceMode() {
+                const isInp = S.sourceType === "inp";
+                $("gpkg-source-block").style.display = isInp ? "none" : "block";
+                $("inp-source-block").style.display = isInp ? "block" : "none";
+                $("gpkg-only-demand-row").style.display = isInp ? "none" : "grid";
+                $("inp-only-demand-note").style.display = isInp ? "block" : "none";
+                $("gpkg-only-events").style.display = isInp ? "none" : "block";
+                $("gpkg-only-quicklinks").style.display = isInp ? "none" : "flex";
+                $("layers-heading").style.display = isInp ? "none" : "block";
+                $("layer-controls").style.display = isInp ? "none" : "block";
+                $("src-tog-gpkg").style.borderColor = isInp ? "" : "var(--cyan2)";
+                $("src-tog-gpkg").style.color = isInp ? "" : "var(--cyan)";
+                $("src-tog-inp").style.borderColor = isInp ? "var(--cyan2)" : "";
+                $("src-tog-inp").style.color = isInp ? "var(--cyan)" : "";
+                $("src-hint").textContent = isInp ?
+                    "The uploaded .inp is simulated exactly as-is — pumps, real valve types, tanks and [CONTROLS]/[RULES] are preserved. Leakage/tank analysis and events below are GPKG-only for now; charts and the EPANET report still work." :
+                    "GIS layers are reconstructed into an EPANET model — some features (pumps, real valve types, controls) may not survive the rebuild.";
+                $("btn-run-sim").disabled = isInp ? !S.inpFile : !S.file;
+                $("btn-load-inp-network").disabled = !S.inpFile;
+            }
+            on("src-tog-gpkg", "click", () => { S.sourceType = "gpkg";
+                applySourceMode(); });
+            on("src-tog-inp", "click", () => { S.sourceType = "inp";
+                applySourceMode(); });
+
+            async function refreshInpFileList(selectName) {
+                const sel = $("inp-file-select");
+                sel.innerHTML = "<option>⏳ loading…</option>";
+                sel.disabled = true;
+                try {
+                    const files = await api("/inp");
+                    S.inpFiles = files || [];
+                    sel.innerHTML = "";
+                    if (!S.inpFiles.length) {
+                        sel.innerHTML = '<option value="">— no .inp files found —</option>';
+                        S.inpFile = null;
+                        S.inpFileInfo = null;
+                    } else {
+                        S.inpFiles.forEach(f => {
+                            const o = document.createElement("option");
+                            o.value = f.filename;
+                            o.textContent = f.filename;
+                            sel.appendChild(o);
+                        });
+                        if (selectName && S.inpFiles.some(f => f.filename === selectName)) sel.value = selectName;
+                        S.inpFile = sel.value;
+                        S.inpFileInfo = S.inpFiles.find(f => f.filename === S.inpFile) || null;
+                    }
+                    renderInpFileInfo();
+                    sel.disabled = false;
+                    if (S.sourceType === "inp") $("btn-run-sim").disabled = !S.inpFile;
+                    $("btn-load-inp-network").disabled = !S.inpFile;
+                    return S.inpFiles.length > 0;
+                } catch (e) {
+                    // Older backends without the /inp router shouldn't break GPKG connect.
+                    sel.innerHTML = '<option value="">— .inp uploads unavailable —</option>';
+                    sel.disabled = false;
+                    return false;
+                }
+            }
+
+            on("inp-file-select", "change", () => {
+                S.inpFile = $("inp-file-select").value;
+                S.inpFileInfo = (S.inpFiles || []).find(f => f.filename === S.inpFile) || null;
+                renderInpFileInfo();
+                if (S.sourceType === "inp") $("btn-run-sim").disabled = !S.inpFile;
+                $("btn-load-inp-network").disabled = !S.inpFile;
+            });
+
+            function renderInpFileInfo() {
+                const el = $("inp-file-info");
+                if (!S.inpFileInfo) { el.style.display = "none";
+                    return; }
+                const f = S.inpFileInfo;
+                el.style.display = "block";
+                el.innerHTML =
+                    `junctions ${f.junction_count} · pipes ${f.pipe_count} · pumps <span style="color:${f.pump_count?"var(--green)":"var(--dim)"}">${f.pump_count}</span> · valves ${f.valve_count} · tanks ${f.tank_count} · controls <span style="color:${f.has_controls?"var(--green)":"var(--dim)"}">${f.has_controls?"yes":"no"}</span> · rules <span style="color:${f.has_rules?"var(--green)":"var(--dim)"}">${f.has_rules?"yes":"no"}</span>`;
+            }
+
+            on("btn-inp-upload", "click", async () => {
+                const input = $("inp-upload-input");
+                const resultEl = $("inp-upload-result");
+                const progressEl = $("inp-upload-progress");
+                showErr("err-setup", null);
+                resultEl.style.display = "none";
+
+                const file = input.files && input.files[0];
+                if (!file) { showErr("err-setup", "Choose a .inp file first."); return; }
+                if (!/\.inp$/i.test(file.name)) { showErr("err-setup", "Only .inp files are accepted here."); return; }
+
+                const fd = new FormData();
+                fd.append("file", file, file.name);
+
+                $("btn-inp-upload").disabled = true;
+                progressEl.style.display = "block";
+                progressEl.textContent = `⏳ uploading ${file.name} (${(file.size/1024/1024).toFixed(2)} MB)…`;
+
+                try {
+                    const res = await apiUpload("/inp/upload", fd);
+                    progressEl.style.display = "none";
+                    resultEl.style.display = "block";
+                    resultEl.style.color = "var(--green)";
+                    resultEl.textContent =
+                        `${res.message}  ·  pumps ${res.pump_count} · valves ${res.valve_count} · tanks ${res.tank_count} · controls ${res.has_controls?"yes":"no"}`;
+                    await refreshInpFileList(res.filename);
+                    input.value = "";
+                } catch (e) {
+                    progressEl.style.display = "none";
+                    showErr("err-setup", "Upload failed: " + e.message);
+                } finally {
+                    $("btn-inp-upload").disabled = false;
+                }
+            });
+
+            on("btn-load-inp-network", "click", async () => {
+                showErr("err-setup", null);
+                $("inp-geo-warning").style.display = "none";
+                if (!S.inpFile) { showErr("err-setup", "Select an .inp file first."); return; }
+                try {
+                    const d = await api(`/inp/${encodeURIComponent(S.inpFile)}/layers`);
+                    renderInpNetwork(d);
+                    buildInpToolbar();
+                    $("setup-stats").style.display = "block";
+                    $("setup-statgrid").innerHTML = `
+                    <div class="stat"><div class="v">${d.stats.pipe_count}</div><div class="l">Pipes</div></div>
+                    <div class="stat"><div class="v">${d.stats.pump_count}</div><div class="l">Pumps</div></div>
+                    <div class="stat"><div class="v">${d.stats.valve_count}</div><div class="l">Valves</div></div>
+                    <div class="stat"><div class="v">${d.stats.reservoir_count}</div><div class="l">Reservoirs</div></div>
+                    <div class="stat"><div class="v">${d.stats.tank_count}</div><div class="l">Tanks</div></div>
+                    <div class="stat"><div class="v">${(d.stats.total_pipe_length_m/1000).toFixed(1)}km</div><div class="l">Pipe length</div></div>`;
+                    if (!d.has_geographic_coords) {
+                        $("inp-geo-warning").style.display = "block";
+                        $("inp-geo-warning").textContent =
+                            "⚠ Coordinates in this .inp don't look like real lon/lat (they may be local Cartesian units). " +
+                            "The map preview below is likely meaningless — verify visually before trusting node positions.";
+                    }
+                    if (d.stats.coords_coverage_pct < 100) {
+                        const cov = document.createElement("div");
+                        cov.style.cssText = "color:var(--amber);font-size:10px;font-family:var(--mono);margin-top:6px";
+                        cov.textContent = `⚠ Only ${d.stats.coords_coverage_pct}% of nodes (${d.stats.nodes_with_coords}/${d.stats.total_nodes}) have [COORDINATES] — some pipes/links may be missing from the preview.`;
+                        $("inp-geo-warning").parentNode.insertBefore(cov, $("inp-geo-warning").nextSibling);
+                    }
+                    $("map-legend").style.display = "block";
+                    try {
+                        const groups = [LG.pipes, LG.inp_pumps, LG.valves, LG.sources, LG.tanks];
+                        let bounds = null;
+                        groups.forEach(g => {
+                            if (g.getLayers().length) {
+                                const b = g.getBounds ? g.getBounds() : null;
+                                if (b && b.isValid()) bounds = bounds ? bounds.extend(b) : b;
+                            }
+                        });
+                        if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [24, 24] });
+                    } catch (e) {}
+                    switchTab("setup");
+                } catch (e) { showErr("err-setup", e.message); }
+            });
+
+            function renderInpNetwork(d) {
+                [LG.boundary, LG.pipes, LG.connectors, LG.sources, LG.tanks, LG.valves, LG.bulk_meters,
+                    LG.inp_pumps
+                ].forEach(lg => lg.clearLayers());
+
+                L.geoJSON(d.pipes, {
+                    style: () => ({ color: var_("--cyan"), weight: 1.8, opacity: .7 }),
+                    onEachFeature: (f, l) => l.bindTooltip(
+                        `<div class="info-tt"><b>${f.properties.id}</b><br>${f.properties.diam_mm?`Ø${f.properties.diam_mm}mm `:""}${f.properties.length_m?`${f.properties.length_m}m`:""}${f.properties.status?` · ${f.properties.status}`:""}</div>`, { sticky: true })
+                }).addTo(LG.pipes);
+
+                L.geoJSON(d.pumps, {
+                    style: () => ({ color: "#3dbf72", weight: 3.5, opacity: .9 }),
+                    onEachFeature: (f, l) => l.bindTooltip(
+                        `<div class="info-tt"><b>${f.properties.id}</b><br>Pump</div>`, { sticky: true })
+                }).addTo(LG.inp_pumps);
+
+                L.geoJSON(d.valves, {
+                    style: () => ({ color: var_("--amber"), weight: 3, dashArray: "4 3", opacity: .9 }),
+                    onEachFeature: (f, l) => l.bindTooltip(
+                        `<div class="info-tt"><b>${f.properties.id}</b><br>${f.properties.valve_type||"Valve"}${f.properties.diam_mm?` · Ø${f.properties.diam_mm}mm`:""}${f.properties.setting?` · ${f.properties.setting}`:""}</div>`, { sticky: true })
+                }).addTo(LG.valves);
+
+                d.reservoirs.features.forEach(f => {
+                    const [lon, lat] = f.geometry.coordinates;
+                    L.circleMarker([lat, lon], { radius: 7, color: var_("--bg"), weight: 2, fillColor: "#1eb8a0",
+                            fillOpacity: 1 })
+                        .bindTooltip(`<div class="info-tt"><b>${f.properties.id}</b><br>Reservoir</div>`, { sticky: true })
+                        .addTo(LG.sources);
+                });
+                d.tanks.features.forEach(f => {
+                    const [lon, lat] = f.geometry.coordinates;
+                    L.circleMarker([lat, lon], { radius: 7, color: var_("--bg"), weight: 2, fillColor: "#50a0d8",
+                            fillOpacity: 1 })
+                        .bindTooltip(`<div class="info-tt"><b>${f.properties.id}</b><br>Tank</div>`, { sticky: true })
+                        .addTo(LG.tanks);
+                });
+
+                $("layer-controls").innerHTML = [
+                    { key: "pipes", label: "Pipes", count: d.stats.pipe_count },
+                    { key: "inp_pumps", label: "Pumps", count: d.stats.pump_count },
+                    { key: "valves", label: "Valves", count: d.stats.valve_count },
+                    { key: "sources", label: "Reservoirs", count: d.stats.reservoir_count },
+                    { key: "tanks", label: "Tanks", count: d.stats.tank_count },
+                    { key: "sim_nodes", label: "Sim: node pressure", count: "—" },
+                ].map(l => `
+                  <div class="lc-row">
+                    <div class="lc-tog on" id="tog-${l.key}" onclick="togLayer('${l.key}',this)"></div>
+                    <span class="lc-label">${l.label}</span>
+                    <span class="lc-count">${l.count}</span>
+                  </div>`).join("");
+            }
+
+            function buildInpToolbar() {
+                $("map-toolbar").innerHTML = `
+                  <div class="mb" id="mb-inp-fit">FIT</div>
+                  <div class="mb" id="mb-inp-network">NETWORK</div>
+                  <div class="mb" id="mb-pressure">PRESSURE</div>`;
+                on("mb-inp-fit", "click", () => {
+                    try {
+                        const groups = [LG.pipes, LG.inp_pumps, LG.valves, LG.sources, LG.tanks];
+                        let bounds = null;
+                        groups.forEach(g => { const b = g.getBounds && g.getBounds();
+                            if (b && b.isValid()) bounds = bounds ? bounds.extend(b) : b; });
+                        if (bounds) map.fitBounds(bounds, { padding: [20, 20] });
+                    } catch (e) {}
+                });
+                on("mb-inp-network", "click", () => {
+                    document.querySelectorAll(".mb").forEach(b => b.classList.remove("active"));
+                    $("mb-inp-network").classList.add("active");
+                    [LG.pipes, LG.inp_pumps, LG.valves, LG.sources, LG.tanks].forEach(g => map.addLayer(g));
+                    map.removeLayer(LG.sim_nodes);
+                    map.removeLayer(LG.sim_pipes);
+                });
+                on("mb-pressure", "click", () => {
+                    document.querySelectorAll(".mb").forEach(b => b.classList.remove("active"));
+                    $("mb-pressure").classList.add("active");
+                    map.addLayer(LG.sim_nodes);
+                    map.addLayer(LG.sim_pipes);
+                });
+            }
 
             async function apiUpload(path, formData) {
                 const r = await fetch(S.apiBase.replace(/\/$/, "") + path, {
@@ -1455,6 +1768,49 @@
                 updateEventSummary();
             });
 
+            // ── SCENARIO TYPE ───────────────────────────────────────────────────────
+            const SCENARIO_HINTS = {
+                baseline: "No leak events are injected. Only what the network's own model/demands represent.",
+                reported_leak: "Injects a specific leak reported by the main system (pipe/node/coords + size). Add at least one below.",
+                planned_shutdown: "A maintenance/isolation run — use Actuator events below to take valves/pumps out of service. No leak events.",
+                fire_flow: "A high-demand test at a node — pair with an Actuator event or a raised demand at the target node. No leak events.",
+                research: "Only mode that allows synthetic/random leaks — the Leakage fraction field and the Leakage events builder below.",
+            };
+            on("sim-scenario-type", "change", () => {
+                const st = $("sim-scenario-type").value;
+                $("scenario-type-hint").textContent = SCENARIO_HINTS[st] || "";
+                $("reported-leak-block").style.display = st === "reported_leak" ? "block" : "none";
+                $("leakage-frac-field").style.display = st === "research" ? "block" : "none";
+            });
+
+            on("btn-add-reported-leak", "click", () => {
+                const pipe = $("rl-pipe").value.trim(), node = $("rl-node").value.trim();
+                if (!pipe && !node) { showErr("err-sim", "Give a pipe ID or a node ID for the reported leak."); return; }
+                const rl = { leak_diameter_m: parseFloat($("rl-diam").value) || 0.02,
+                    start_time_s: parseInt($("rl-t0").value) || 0 };
+                if (pipe) rl.pipe_id = pipe;
+                if (node) rl.node_id = node;
+                const sev = $("rl-severity").value;
+                if (sev) rl.severity = sev;
+                S.reportedLeaks.push(rl);
+                renderReportedLeaks();
+                showErr("err-sim", null);
+            });
+
+            function renderReportedLeaks() {
+                $("ev-reported-leak-list").innerHTML = S.reportedLeaks.map((rl, i) => `
+                    <div class="event-item">
+                      <span class="ev-badge leakage">LEAK</span>
+                      <span class="ev-rm" onclick="removeReportedLeak(${i})">✕</span>
+                      <div class="ev-detail">${rl.pipe_id ? `pipe <b>${rl.pipe_id}</b>` : `node <b>${rl.node_id}</b>`} · Ø${rl.leak_diameter_m}m${rl.severity ? ` · ${rl.severity}` : ""} · t=${rl.start_time_s}s</div>
+                    </div>`).join("") || `<p style="color:var(--faint);font-size:11px;margin-bottom:6px">No reported leaks added yet</p>`;
+            }
+            function removeReportedLeak(idx) {
+                S.reportedLeaks.splice(idx, 1);
+                renderReportedLeaks();
+            }
+            window.removeReportedLeak = removeReportedLeak;
+
             function renderEventLists() {
                 const render = (listId, items, badge, fmt) => {
                     $(listId).innerHTML = items.map((ev, i) => `
@@ -1511,7 +1867,46 @@
             on("btn-run-sim", "click", async () => {
                 showErr("err-sim", null);
                 $("sim-summary").style.display = "none";
+
+                const scenarioType = $("sim-scenario-type").value;
+                if (scenarioType === "reported_leak" && !S.reportedLeaks.length) {
+                    showErr("err-sim", "Add at least one reported leak, or switch SCENARIO TYPE.");
+                    return;
+                }
+
+                if (S.sourceType === "inp") {
+                    if (!S.inpFile) { showErr("err-sim", "Upload or select an .inp file first."); return; }
+                    const body = {
+                        name: $("sim-name").value || "Uploaded .inp run",
+                        duration_hrs: parseInt($("sim-duration").value) || null,
+                        time_step_min: parseInt($("sim-timestep").value) || null,
+                        demand_model: $("sim-demand-model").value || "DDA",
+                        pda_pressure_min: parseFloat($("sim-pda-pmin").value) || 0,
+                        pda_pressure_required: parseFloat($("sim-pda-preq").value) || 0.1,
+                        pda_pressure_exponent: parseFloat($("sim-pda-pexp").value) || 0.5,
+                        scenario_type: scenarioType,
+                    };
+                    if (scenarioType === "reported_leak") body.reported_leaks = S.reportedLeaks;
+                    try {
+                        const resp = await api(`/inp/${encodeURIComponent(S.inpFile)}/simulate`, {
+                            method: "POST", body: JSON.stringify(body)
+                        });
+                        S.scenarioId = resp.id;
+                        setStatus("sim-status", "PENDING", "queued…");
+                        LG.connectors.clearLayers();
+                        $("conn-alert").style.display = "none";
+                        if (S.pollTimer) clearInterval(S.pollTimer);
+                        S.pollTimer = setInterval(pollScenario, 2500);
+                        pollScenario();
+                    } catch (e) { showErr("err-sim", e.message); }
+                    return;
+                }
+
                 if (!S.file) { showErr("err-sim", "Load a DMA file first."); return; }
+                if (S.events.leakages.length && scenarioType !== "research") {
+                    showErr("err-sim", "You've added synthetic leakage events — set SCENARIO TYPE to Research to use them, or remove them.");
+                    return;
+                }
                 const hasEvents = S.events.leakages.length || S.events.sensor_faults.length || S.events.actuator_events
                     .length;
                 const dp = parseFloat($("unc-demand").value) || 0;
@@ -1521,24 +1916,29 @@
                 const hasUnc = dp || rp || pn || fn;
                 const isAdvanced = hasEvents || hasUnc;
 
+                // leakage_frac / leakage_events are synthetic-leak tools the backend
+                // only allows when scenario_type='research' — send 0 / [] otherwise
+                // so a baseline/reported_leak/etc. run never trips that contract.
                 const base = {
                     name: $("sim-name").value || "DMA run",
                     duration_hrs: parseInt($("sim-duration").value) || 24,
                     time_step_min: parseInt($("sim-timestep").value) || 60,
                     base_demand_m3h: parseFloat($("sim-demand").value) || 0.011,
-                    leakage_frac: parseFloat($("sim-leakage").value) || 0.20,
+                    leakage_frac: scenarioType === "research" ? (parseFloat($("sim-leakage").value) || 0) : 0,
                     demand_model: $("sim-demand-model").value || "DDA",
                     pda_pressure_min: parseFloat($("sim-pda-pmin").value) || 0,
                     pda_pressure_required: parseFloat($("sim-pda-preq").value) || 0.1,
                     pda_pressure_exponent: parseFloat($("sim-pda-pexp").value) || 0.5,
+                    scenario_type: scenarioType,
                 };
+                if (scenarioType === "reported_leak") base.reported_leaks = S.reportedLeaks;
 
                 let endpoint, body;
                 if (isAdvanced) {
                     endpoint = `/dma/${encodeURIComponent(S.file)}/simulate/advanced`;
                     body = {
                         ...base,
-                        leakage_events: S.events.leakages,
+                        leakage_events: scenarioType === "research" ? S.events.leakages : [],
                         sensor_faults: S.events.sensor_faults,
                         actuator_events: S.events.actuator_events,
                         model_uncertainty: (dp || rp) ? { demand_pct: dp / 100, roughness_pct: rp / 100,
@@ -1626,6 +2026,13 @@
                     });
                     map.addLayer(LG.sim_nodes);
                     map.addLayer(LG.sim_pipes);
+                    if (S.sourceType === "inp") {
+                        try {
+                            const b = LG.sim_pipes.getBounds?.() && LG.sim_pipes.getBounds().isValid() ?
+                                LG.sim_pipes.getBounds() : LG.sim_nodes.getBounds();
+                            if (b && b.isValid()) map.fitBounds(b, { padding: [24, 24] });
+                        } catch (e) {}
+                    }
                 } catch (e) {}
             }
 
@@ -1775,6 +2182,7 @@
                 $("charts-content").style.display = "block";
                 $("report-ph").style.display = "none";
                 $("report-content").style.display = "block";
+                if (S.sourceType === "inp") $("map-legend").style.display = "block";
             }
 
             on("btn-plot-pressure", "click", async () => {
@@ -1894,6 +2302,7 @@
 
             // ── init ──────────────────────────────────────────────────────────────────
             renderEventLists();
+            applySourceMode();
 
             // Override switchTab to scroll to top of the tab content
             const origSwitch = switchTab;

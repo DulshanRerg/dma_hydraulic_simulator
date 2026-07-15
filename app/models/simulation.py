@@ -44,12 +44,20 @@ class SimScenario(Base):
     reservoir_lat:    Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     reservoir_lon:    Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     snap_tolerance_m: Mapped[float]           = mapped_column(Float, default=2.0)
-    # DMA simulation parameters
+    # Random-per-node synthetic leak fraction — ONLY meaningful (and only
+    # permitted by the API layer) when scenario_type="research". Defaults
+    # to 0.0 so no scenario gets synthetic leaks unless explicitly asked
+    # for via a research-mode request. See app/core/scenario_types.py.
     leakage_frac: Mapped[float] = mapped_column(
         Float,
-        default=0.20,
+        default=0.0,
         nullable=False
     )
+
+    # scenario_type: baseline | reported_leak | planned_shutdown | fire_flow | research.
+    # Only "research" may use random/synthetic leak generation (leakage_frac
+    # above). See app/core/scenario_types.py for the full contract.
+    scenario_type: Mapped[str] = mapped_column(String(24), default="baseline", nullable=False)
 
     # demand model: "DDA" (demand-driven, default) or "PDA" (pressure-driven)
     demand_model:          Mapped[str]   = mapped_column(String(8), default="DDA", nullable=False)

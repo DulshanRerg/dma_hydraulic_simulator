@@ -27,3 +27,4 @@ __pycache__/
 epanet/
 epanet
 *.rpt
+*.inp

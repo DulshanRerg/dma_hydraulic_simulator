@@ -69,9 +69,12 @@ async def init_db() -> None:
 async def _ensure_sim_scenarios_columns(conn) -> None:
     result   = await conn.execute(text("PRAGMA table_info(sim_scenarios)"))
     existing = {row[1] for row in result.fetchall()}
-    # leakage_frac was added when the DMA workflow replaced the whole-network one
+    # leakage_frac was added when the DMA workflow replaced the whole-network
+    # one. Its safe default is 0.0 — random/synthetic leak generation is
+    # opt-in (scenario_type="research" only), never a silent default.
     additions = {
-        "leakage_frac": "FLOAT DEFAULT 0.20",
+        "leakage_frac":  "FLOAT DEFAULT 0.00",
+        "scenario_type": "VARCHAR(24) DEFAULT 'baseline'",
     }
     for column, coltype in additions.items():
         if column not in existing:

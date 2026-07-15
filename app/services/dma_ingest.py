@@ -102,15 +102,26 @@ class DMATank:
 
 @dataclass
 class DMAValve:
-    """Sluice / gate / air valve.  Air valves become plain junctions."""
+    """Sluice / gate / butterfly / non-return / washout / air valve.
+
+    `kind` drives how dma_builder.py represents the valve in the .inp:
+      ISOLATION  -> throttling pipe stub, Status Open  (sluice/gate/butterfly)
+      CHECK      -> plain pipe stub, Status CV          (non-return)
+      WASHOUT    -> throttling pipe stub, Status Closed (normally-shut drain)
+      AIR        -> plain junction (no stub)            (air/vacuum release)
+      UNKNOWN    -> plain junction, but logged for manual mapping
+                    (unrecognised free-text or bare numeric legacy codes)
+    """
     fid:          int
-    valve_type:   str           # SLUICE VALVE, GATE VALVE, AIR VALVE …
+    valve_type:   str           # raw ValveType text/code from the GIS layer
     lon:          float
     lat:          float
     elev_m:       float
     diam_mm:      float
     status:       str
-    is_isolation: bool          # True = sluice/gate (can isolate flow)
+    kind:         str           # ISOLATION | CHECK | WASHOUT | AIR | UNKNOWN
+    is_isolation: bool          # True = ISOLATION (kept for backward compat)
+
 
 
 @dataclass
@@ -132,6 +143,56 @@ class DMAData:
     tanks:        List[DMATank]
     valves:       List[DMAValve]
     bulk_meters:  List[DMABulkMeter]
+
+
+# ── valve type classifier ──────────────────────────────────────────────────────
+# Field data is hand-entered GIS text and is riddled with typos (SLIUCE VALVE,
+# SLUIICE VALVE, GATE VAVLE, ...). A plain substring check on "SLUICE"/"GATE"
+# misses several of these, silently dropping the valve to a plain junction.
+# difflib gives us tolerance for that without hardcoding every typo we've seen.
+
+def _classify_valve_type(vtype: str) -> str:
+    """Map a raw (upper-cased, stripped) ValveType string to one of
+    ISOLATION | CHECK | WASHOUT | AIR | UNKNOWN.
+
+    UNKNOWN covers both unrecognised free text and the bare numeric legacy
+    codes ("1", "2", "3", ...) that appear in this dataset with no legend —
+    these are surfaced via a logger.warning in ingest_dma() rather than
+    guessed at, so they can be mapped once their meaning is confirmed.
+    """
+    import difflib
+
+    if not vtype or vtype.isdigit():
+        return "UNKNOWN"
+
+    # Short abbreviations seen in hand-entered data (exact token match only —
+    # too short to fuzzy-match safely).
+    abbrev = {"AV": "AIR", "GV": "ISOLATION", "SV": "ISOLATION", "NRV": "CHECK"}
+    if vtype in abbrev:
+        return abbrev[vtype]
+
+    # Exact/substring checks first (cheap, covers the bulk of real rows).
+    if "AIR" in vtype:
+        return "AIR"
+    if "NON RETURN" in vtype or "NON-RETURN" in vtype or "NON_RETURN" in vtype:
+        return "CHECK"
+    if "WASH" in vtype and "OUT" in vtype:
+        return "WASHOUT"
+    if "BUTTERFLY" in vtype:
+        return "ISOLATION"
+    if "SLUICE" in vtype or "GATE" in vtype:
+        return "ISOLATION"
+
+    # Fuzzy fallback for misspelled isolation-valve variants, e.g.
+    # "SLIUCE VALVE", "SLUIICE VALVE", "SLICE VALVE", "SLUICE VAIVE".
+    tokens = vtype.replace("-", " ").split()
+    for token in tokens:
+        if difflib.SequenceMatcher(None, token, "SLUICE").ratio() >= 0.75:
+            return "ISOLATION"
+        if difflib.SequenceMatcher(None, token, "GATE").ratio() >= 0.8:
+            return "ISOLATION"
+
+    return "UNKNOWN"
 
 
 # ── WKB parser (pure stdlib, same approach as network_builder.py) ─────────────
@@ -544,7 +605,7 @@ def ingest_dma(filename: str, clip_to_dma: bool = True, zone_name: str = None) -
             status = str(row["Status"] or "OPERATIONAL")
             elev   = row["ElevationM"]; elev = float(elev) if elev else 1100.0
             diam   = row["NomDiamMm"];  diam = float(diam) if diam else 100.0
-            is_iso = any(k in vtype for k in ("SLUICE", "GATE"))
+            kind   = _classify_valve_type(vtype)
             valves_out.append(DMAValve(
                 fid          = int(row["fid"]),
                 valve_type   = str(row["ValveType"] or "UNKNOWN"),
@@ -553,9 +614,17 @@ def ingest_dma(filename: str, clip_to_dma: bool = True, zone_name: str = None) -
                 elev_m       = elev,
                 diam_mm      = diam,
                 status       = status,
-                is_isolation = is_iso,
+                kind         = kind,
+                is_isolation = (kind == "ISOLATION"),
             ))
 
+    unknown_types = sorted({v.valve_type for v in valves_out if v.kind == "UNKNOWN"})
+    if unknown_types:
+        logger.warning(
+            "Valves in DMA: %d unclassified ValveType value(s) fell back to "
+            "plain junctions (no isolation/check/washout behaviour modelled): %s",
+            len(unknown_types), unknown_types,
+        )
     logger.info("Valves in DMA: %d", len(valves_out))
 
     # ── bulk meters ────────────────────────────────────────────────────────────

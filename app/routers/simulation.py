@@ -34,6 +34,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import require_api_key
 from app.core.database import get_db
 from app.core.exceptions import SimulationNotFoundError, SimulationStillRunningError
+from app.core.scenario_types import ALL_SCENARIO_TYPES, REPORTED_LEAK, validate_scenario_contract
 from app.models.simulation import SimResult, SimScenario
 from app.services.report_plots import plot_node_pressure, plot_pipe_flow
 from app.services.rpt_parser import (
@@ -97,8 +98,24 @@ class SimulateRequest(BaseModel):
         None,
         description=(
             "Active leak reports to simulate as EPyT-Flow AbruptLeakage events. "
-            "Each entry is snapped to the nearest network node."
+            "Each entry is snapped to the nearest network node. Requires "
+            "scenario_type='reported_leak'."
         ),
+    )
+
+    # scenario_type contract (app/core/scenario_types.py). NOTE: this
+    # endpoint currently has no working .gpkg → .inp builder (see
+    # simulation_worker.py's docstring) — any scenario queued here fails
+    # at run time regardless of scenario_type. These fields exist for API
+    # consistency with /dma/*/simulate and /inp/*/simulate, which do have
+    # a working .inp pipeline and fully enforce this contract.
+    scenario_type: str = Field(
+        "baseline",
+        description=f"One of: {', '.join(sorted(ALL_SCENARIO_TYPES))}.",
+    )
+    leakage_frac: float = Field(
+        0.0, ge=0, le=1.0,
+        description="Research-only: fraction of nodes to receive a random synthetic leak event. Requires scenario_type='research'.",
     )
 
     # ── sub-network simulation ──────────────────────────────────────────────
@@ -136,6 +153,18 @@ class SimulateRequest(BaseModel):
             raise ValueError("pda_pressure_required must be greater than pda_pressure_min")
         return self
 
+    @model_validator(mode="after")
+    def _check_scenario_contract(self):
+        try:
+            validate_scenario_contract(
+                scenario_type       = self.scenario_type,
+                leakage_frac        = self.leakage_frac,
+                has_reported_leaks  = bool(self.leak_events),
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+        return self
+
 
 class ScenarioResponse(BaseModel):
     id:             int
@@ -155,6 +184,8 @@ class ScenarioResponse(BaseModel):
     reservoir_lat:  Optional[float]
     reservoir_lon:  Optional[float]
     snap_tolerance_m: float
+    scenario_type:  str
+    leakage_frac:   float
     created_at:     datetime
     started_at:     Optional[datetime]
     finished_at:    Optional[datetime]
@@ -281,6 +312,8 @@ async def create_simulation(
         reservoir_lat     = body.reservoir_lat,
         reservoir_lon     = body.reservoir_lon,
         snap_tolerance_m  = body.snap_tolerance_m,
+        scenario_type     = body.scenario_type,
+        leakage_frac      = body.leakage_frac,
         status         = "PENDING",
     )
     db.add(scenario)

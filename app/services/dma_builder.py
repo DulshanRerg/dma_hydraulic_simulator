@@ -14,7 +14,8 @@ Pipeline
    • Map storage tanks → [TANKS]
    • Map all other nodes → [JUNCTIONS] with IDW-interpolated elevation
    • Map repaired edges → [PIPES] (Hazen-Williams, material-derived C)
-   • Snap valves to nearest node → [VALVES] (TCV for sluice/gate)
+   • Snap valves to nearest node → pipe stub (isolation/washout throttled,
+     check valves use real CV status, air/unrecognised types stay junctions)
    • Bulk meter nodes → zero-demand junctions for NRW monitoring
    • Return inp_path + repair report (synthetic connectors)
 
@@ -187,13 +188,25 @@ def build_dma_inp(
     # ── 3a. Pre-compute valve helpers BEFORE writing any section ─────────────
     # EPANET TCV requires both nodes to already be pipe-connected, which is
     # impossible for our snapped-to-junction valve nodes.  Instead, model each
-    # isolation valve (sluice / gate) as a short 0.5 m stub pipe with:
-    #   - high minor-loss coefficient (10.0) to simulate throttling resistance
-    #   - status = Open  (field engineer can mark it Closed per scenario)
-    # Air valves → plain junctions (already handled by snapping to nearest node).
+    # valve as a short 0.5 m stub pipe, with behaviour depending on `kind`:
+    #   ISOLATION (sluice/gate/butterfly) - high minor-loss coeff (10.0),
+    #                                       Status Open (can be closed per scenario)
+    #   WASHOUT   (drain valve)           - same stub, but Status Closed by
+    #                                       default: these are normally shut and
+    #                                       only opened to flush/drain a main
+    #   CHECK     (non-return valve)      - ordinary stub (no artificial minor
+    #                                       loss), Status CV so EPANET enforces
+    #                                       one-way flow node1->node2. Flow
+    #                                       direction is taken from the nearest
+    #                                       upstream-looking pipe order in the
+    #                                       source data; verify against as-built
+    #                                       drawings if backflow direction matters.
+    #   AIR / UNKNOWN                     - no stub; valve stays a plain junction
+    #                                       (unchanged from before). UNKNOWN
+    #                                       cases are logged during ingest.
     valve_pipe_rows: List[str] = []
     for key, v in valve_nodes.items():
-        if not v.is_isolation:
+        if v.kind not in ("ISOLATION", "WASHOUT", "CHECK"):
             continue
         helper_id = f"VH_{v.fid}"
         nd = nodes[key]
@@ -202,10 +215,19 @@ def build_dma_inp(
         )
         junction_keys.add(helper_id)   # VH_ is a zero-demand junction
         diam = max(25.0, v.diam_mm)
-        valve_pipe_rows.append(
-            f"  VPIPE_{v.fid}  {key}  {helper_id}  0.5  {diam:.1f}  130.0  10.0  Open"
-            f"  ; {v.valve_type}"
-        )
+        if v.kind == "CHECK":
+            # Real check valve: no artificial throttling, EPANET's CV status
+            # already enforces one-directional flow.
+            valve_pipe_rows.append(
+                f"  VPIPE_{v.fid}  {key}  {helper_id}  0.5  {diam:.1f}  130.0  0  CV"
+                f"  ; {v.valve_type}"
+            )
+        else:
+            status = "Closed" if v.kind == "WASHOUT" else "Open"
+            valve_pipe_rows.append(
+                f"  VPIPE_{v.fid}  {key}  {helper_id}  0.5  {diam:.1f}  130.0  10.0  {status}"
+                f"  ; {v.valve_type}"
+            )
 
     # ── 3. write .inp ─────────────────────────────────────────────────────────
     if inp_dir is None:

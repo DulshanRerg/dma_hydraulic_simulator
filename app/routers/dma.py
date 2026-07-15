@@ -18,16 +18,18 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import require_api_key
 from app.core.database import get_db                       # ← correct FastAPI dependency
 from app.core.exceptions import GpkgNotFoundError, InvalidGpkgError
+from app.core.scenario_types import ALL_SCENARIO_TYPES, REPORTED_LEAK, validate_scenario_contract
 from app.models.simulation import SimResult, SimScenario
 from app.services.dma_builder import build_dma_inp, estimate_nrw
 from app.services.dma_ingest import ingest_dma
+from app.services.leak_report import LeakValidationError, ReportedLeak, resolve_and_validate_reports
 from app.services.leakage_report import analyse_leakage
 from app.workers.simulation_worker import run_simulation_task
 
@@ -92,7 +94,7 @@ def get_dma_layers(
                    "features": [point_feature(v.lon, v.lat,
                        {"fid": v.fid, "valve_type": v.valve_type,
                         "diam_mm": v.diam_mm, "is_isolation": v.is_isolation,
-                        "type": "valve"}) for v in dma.valves]},
+                        "kind": v.kind, "type": "valve"}) for v in dma.valves]},
         "bulk_meters": {"type": "FeatureCollection",
                         "features": [point_feature(b.lon, b.lat,
                             {"fid": b.fid, "name": b.name, "type": "bulk_meter"})
@@ -115,7 +117,24 @@ class DMASimRequest(BaseModel):
     duration_hrs:    int   = Field(24, ge=1, le=168)
     time_step_min:   int   = Field(60, ge=5, le=360)
     base_demand_m3h: float = Field(0.011, gt=0)
-    leakage_frac:    float = Field(0.20,  ge=0, le=1.0)
+
+    # scenario_type contract (app/core/scenario_types.py): this is a
+    # simulation engine that consumes leak events supplied by the main
+    # water-management system — it does not decide on its own where
+    # leaks are. leakage_frac (random/synthetic per-node leak
+    # generation) is only usable when scenario_type="research".
+    scenario_type: str = Field(
+        "baseline",
+        description=f"One of: {', '.join(sorted(ALL_SCENARIO_TYPES))}.",
+    )
+    leakage_frac: float = Field(
+        0.0, ge=0, le=1.0,
+        description="Research-only: fraction of nodes to receive a random synthetic leak event. Requires scenario_type='research'.",
+    )
+    reported_leaks: Optional[List[ReportedLeak]] = Field(
+        None,
+        description="Required when scenario_type='reported_leak'. Leak report(s) from the main system, validated against the network before the scenario is queued.",
+    )
 
     demand_model: str = Field(
         "DDA",
@@ -125,6 +144,18 @@ class DMASimRequest(BaseModel):
     pda_pressure_min:      float = Field(0.0, ge=0)
     pda_pressure_required: float = Field(0.1, gt=0)
     pda_pressure_exponent: float = Field(0.5, gt=0)
+
+    @model_validator(mode="after")
+    def _check_scenario_contract(self):
+        try:
+            validate_scenario_contract(
+                scenario_type       = self.scenario_type,
+                leakage_frac        = self.leakage_frac,
+                has_reported_leaks  = bool(self.reported_leaks),
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+        return self
 
 
 @router.post("/{filename}/simulate", status_code=202)
@@ -167,6 +198,21 @@ async def simulate_dma(
         logger.exception("DMA .inp build failed")
         raise HTTPException(422, f"Failed to build EPANET model: {e}")
 
+    # Resolve + validate reported leak(s) against the network *before*
+    # queuing — a bad report should fail the request with a 422, not
+    # surface later as a FAILED scenario. resolve_and_validate_reports
+    # returns dicts already shaped for the worker's leak-event pipeline.
+    resolved_leaks: list = []
+    if body.scenario_type == REPORTED_LEAK:
+        try:
+            resolved_leaks = resolve_and_validate_reports(
+                body.reported_leaks, inp_path, body.duration_hrs * 3600
+            )
+        except LeakValidationError as e:
+            import shutil as _shutil
+            _shutil.rmtree(inp_dir, ignore_errors=True)
+            raise HTTPException(422, str(e))
+
     connectors_geojson = _connectors_to_geojson(repair_report)
 
     scenario = SimScenario(
@@ -181,6 +227,8 @@ async def simulate_dma(
         pda_pressure_min      = body.pda_pressure_min,
         pda_pressure_required = body.pda_pressure_required,
         pda_pressure_exponent = body.pda_pressure_exponent,
+        scenario_type  = body.scenario_type,
+        leakage_frac   = body.leakage_frac,
         extra_demands  = {
             "_dma_inp_path":        inp_path,
             "_dma_name":            dma.dma_name,
@@ -190,7 +238,8 @@ async def simulate_dma(
             "_connector_length_m":  repair_report.total_connector_length_m,
             "_original_components": repair_report.original_component_count,
             "_repair_warnings":     repair_report.warnings,
-            "_scenario_type":       "baseline",
+            "_dma_endpoint":        "baseline",
+            "_leak_events":         resolved_leaks,
         },
         status = "PENDING",
     )
@@ -199,7 +248,11 @@ async def simulate_dma(
     await db.refresh(scenario)
 
     background.add_task(run_simulation_task, scenario.id)
-    logger.info("Queued DMA baseline scenario %d for '%s'", scenario.id, filename)
+    logger.info(
+        "Queued DMA %s scenario %d for '%s'%s",
+        body.scenario_type, scenario.id, filename,
+        f" ({len(resolved_leaks)} reported leak(s))" if resolved_leaks else "",
+    )
 
     return {
         "id": scenario.id, "status": "PENDING",
@@ -270,7 +323,25 @@ class DMAAdvancedSimRequest(BaseModel):
     duration_hrs:     int   = Field(24, ge=1, le=168)
     time_step_min:    int   = Field(60, ge=5, le=360)
     base_demand_m3h:  float = Field(0.011, gt=0)
-    leakage_frac:     float = Field(0.20, ge=0, le=1.0)
+
+    # scenario_type contract (app/core/scenario_types.py). Both
+    # leakage_frac (random per-node leaks) and leakage_events (explicit
+    # EPyT-Flow link-based leaks) are synthetic/what-if injection tools
+    # and so are restricted the same way — research-mode only. A real
+    # leak reported by the main system goes through reported_leaks
+    # instead, which is validated against the network before queuing.
+    scenario_type: str = Field(
+        "baseline",
+        description=f"One of: {', '.join(sorted(ALL_SCENARIO_TYPES))}.",
+    )
+    leakage_frac: float = Field(
+        0.0, ge=0, le=1.0,
+        description="Research-only: fraction of nodes to receive a random synthetic leak event. Requires scenario_type='research'.",
+    )
+    reported_leaks: Optional[List[ReportedLeak]] = Field(
+        None,
+        description="Required when scenario_type='reported_leak'. Leak report(s) from the main system, validated against the network before the scenario is queued.",
+    )
 
     demand_model: str = Field(
         "DDA",
@@ -289,6 +360,19 @@ class DMAAdvancedSimRequest(BaseModel):
     # EPyT-Flow uncertainties
     model_uncertainty: Optional[ModelUncertaintyModel] = None
     sensor_noise:      Optional[SensorNoiseModel]      = None
+
+    @model_validator(mode="after")
+    def _check_scenario_contract(self):
+        try:
+            validate_scenario_contract(
+                scenario_type            = self.scenario_type,
+                leakage_frac             = self.leakage_frac,
+                has_reported_leaks       = bool(self.reported_leaks),
+                has_explicit_leak_events = bool(self.leakage_events),
+            )
+        except ValueError as exc:
+            raise ValueError(str(exc)) from exc
+        return self
 
 
 @router.post("/{filename}/simulate/advanced", status_code=202)
@@ -341,6 +425,18 @@ async def simulate_dma_advanced(
         logger.exception("DMA .inp build failed (advanced)")
         raise HTTPException(422, f"Failed to build EPANET model: {e}")
 
+    # Resolve + validate reported leak(s) against the network before queuing.
+    resolved_leaks: list = []
+    if body.scenario_type == REPORTED_LEAK:
+        try:
+            resolved_leaks = resolve_and_validate_reports(
+                body.reported_leaks, inp_path, body.duration_hrs * 3600
+            )
+        except LeakValidationError as e:
+            import shutil as _shutil
+            _shutil.rmtree(inp_dir, ignore_errors=True)
+            raise HTTPException(422, str(e))
+
     # Serialise all event dicts for storage in extra_demands
     events_cfg = (
         [e.model_dump() for e in body.leakage_events]
@@ -360,6 +456,8 @@ async def simulate_dma_advanced(
         pda_pressure_min      = body.pda_pressure_min,
         pda_pressure_required = body.pda_pressure_required,
         pda_pressure_exponent = body.pda_pressure_exponent,
+        scenario_type  = body.scenario_type,
+        leakage_frac   = body.leakage_frac,
         extra_demands  = {
             "_dma_inp_path":          inp_path,
             "_dma_name":              dma.dma_name,
@@ -369,10 +467,11 @@ async def simulate_dma_advanced(
             "_connector_length_m":    repair_report.total_connector_length_m,
             "_original_components":   repair_report.original_component_count,
             "_repair_warnings":       repair_report.warnings,
-            "_scenario_type":         "advanced",
+            "_dma_endpoint":          "advanced",
             "_events":                events_cfg,
             "_model_uncertainty":     body.model_uncertainty.model_dump() if body.model_uncertainty else None,
             "_sensor_noise":          body.sensor_noise.model_dump() if body.sensor_noise else None,
+            "_leak_events":           resolved_leaks,
         },
         status = "PENDING",
     )
@@ -382,8 +481,8 @@ async def simulate_dma_advanced(
 
     background.add_task(run_simulation_task, scenario.id)
     logger.info(
-        "Queued DMA advanced scenario %d | leaks=%d faults=%d actuators=%d",
-        scenario.id, len(body.leakage_events), len(body.sensor_faults), len(body.actuator_events),
+        "Queued DMA advanced scenario %d | scenario_type=%s reported_leaks=%d faults=%d actuators=%d",
+        scenario.id, body.scenario_type, len(resolved_leaks), len(body.sensor_faults), len(body.actuator_events),
     )
 
     return {

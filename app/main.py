@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 
 from app.core.config import get_settings
 from app.core.database import init_db
-from app.routers import dma, files, simulation, upload
+from app.routers import dma, files, simulation, upload, inp
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,7 +43,7 @@ def create_app() -> FastAPI:
         title       = settings.service_name,
         version     = settings.service_version,
         description = (
-            "DUWASA DMA Hydraulic Simulation Service.\n\n"
+            "EPANET-backed backend Hydraulic Simulation Service.\n\n"
             "Reads multi-layer `.gpkg` files (pipes, sources, tanks, valves, DMA boundary) "
             "from a shared volume, builds EPANET models with automatic topology repair, "
             "runs 24-hour Extended Period Simulations via **EPyT-Flow / EPANET**, and "
@@ -69,6 +69,7 @@ def create_app() -> FastAPI:
     # ── routers ───────────────────────────────────────────────────────────────
     app.include_router(files.router)
     app.include_router(upload.router)
+    app.include_router(inp.router)
     app.include_router(dma.router)
     app.include_router(simulation.router)
     # Serve the standalone frontend at /app (index.html = dma_explorer.html)

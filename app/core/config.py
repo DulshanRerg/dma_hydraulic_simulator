@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     )
 
     # service identity
-    service_name:    str  = "EPANET Hydraulic Service"
+    service_name:    str  = "EPANET-backed Backend Service"
     service_version: str  = "1.0.0"
     debug:           bool = False
 
@@ -32,6 +32,10 @@ class Settings(BaseSettings):
 
     # paths
     gpkg_dir:     str = "./data/gpkg"
+    # Raw EPANET .inp files uploaded directly (bypassing the GIS→.inp
+    # builder pipeline) live here. Same persistence caveat as gpkg_dir:
+    # on Render's free tier this is wiped on redeploy/restart.
+    inp_dir:      str = "./data/inp"
     database_url: str = "sqlite+aiosqlite:///./data/db/epanet_service.db"
     # EPANET .rpt report files are copied here after each simulation so they
     # survive the temp-dir cleanup and can be viewed/downloaded later.

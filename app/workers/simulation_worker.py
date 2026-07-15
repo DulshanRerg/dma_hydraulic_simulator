@@ -2,29 +2,49 @@
 """
 Background task — EPyT-Flow v0.17.x edition.
 
+This service is a hydraulic simulation *engine*: it does not decide on
+its own where leaks are. Every scenario carries a `scenario_type`
+(see app/core/scenario_types.py) that determines where its leak events,
+if any, come from:
+
+    baseline / planned_shutdown / fire_flow   No leak events, ever.
+    reported_leak   Leak events come only from `reported_leaks`,
+                     resolved and validated against the network by the
+                     router *before* the scenario was queued (see
+                     routers/dma.py, routers/inp.py) and handed to this
+                     worker pre-resolved via extra_demands["_leak_events"].
+    research         The only scenario_type allowed to fall back to the
+                     legacy random-per-node `leakage_frac` generator.
+
 Pipeline
 --------
 1. Mark scenario RUNNING.
-2. Convert .gpkg → EPANET .inp  via network_builder.
-3. Resolve lat/lon from extra_demands → nearest EPANET node ID
-   (parsed from [COORDINATES] in the generated .inp).
-4. Build leak_event dicts for simulation_service (keys: node_id,
-   diameter, start_time, end_time).
-5. Run EPyT-Flow simulation.
-6. Persist results in batches.
-7. Mark DONE or FAILED; clean up temp .inp file.
+2. Look up the .inp already built for this scenario by the DMA ingest
+   pipeline (dma_builder.build_dma_inp, invoked from routers/dma.py or
+   routers/inp.py), via extra_demands["_dma_inp_path"]. There is no
+   longer any direct .gpkg → .inp / subset-selection builder here —
+   that used to live in network_builder.py / network_subset.py, which
+   have been removed. A scenario without a pre-built .inp path fails
+   fast with a clear error.
+3. Resolve leak events per the scenario_type contract above.
+4. Run EPyT-Flow simulation.
+5. Persist results in batches. For scenario_type="reported_leak", also
+   compute a service-impact summary and topological isolation
+   recommendations per leak.
+6. Mark DONE or FAILED; clean up temp .inp file.
 """
 
 import logging
 import math
 import os
 import shutil
-import tempfile
 from datetime import datetime
 
 from app.core.config import get_settings
 from app.core.database import get_session
+from app.core.scenario_types import ALL_SCENARIO_TYPES, RANDOM_LEAKS_ALLOWED_FOR, REPORTED_LEAK
 from app.models.simulation import SimResult, SimScenario
+from app.services.leak_report import compute_service_impact, recommend_isolation
 from app.services.rpt_parser import parse_rpt, rpt_nrw_summary
 from app.services.simulation_service import run_simulation
 
@@ -92,21 +112,36 @@ def _nearest_node(lat: float, lon: float, coords: dict) -> str:
 
 
 def _build_leak_events(
-    extra_demands: list, inp_path: str, duration_sec: int
+    extra_demands, inp_path: str, duration_sec: int
 ) -> list:
     """
     Map lat/lon extra_demands → EPyT-Flow leak event dicts.
     Keys returned: node_id, diameter, start_time, end_time.
 
-    DMA scenarios store a metadata dict in extra_demands (not a list of
-    leak events). Detect this and bail out gracefully.
+    DMA/inp scenarios store a metadata dict in extra_demands (keys start
+    with "_") rather than a bare list of [{lat, lon, ...}] leak events.
+    One exception: a pre-resolved `_leak_events` list nested inside that
+    dict — set by routers/dma.py or routers/inp.py for scenario_type=
+    "reported_leak", after validating the report(s) against the network
+    via leak_report.resolve_and_validate_reports(). Those are already in
+    the {node_id, diameter, start_time, end_time, ...} shape the worker
+    needs, so they're returned as-is rather than re-resolved from lat/lon.
     """
     if not extra_demands:
         return []
 
-    # DMA scenarios put a flat metadata dict in extra_demands (keys start with "_")
-    # rather than a list of [{lat, lon, ...}] leak events. Skip gracefully.
     if isinstance(extra_demands, dict):
+        pre_resolved = extra_demands.get("_leak_events")
+        if isinstance(pre_resolved, list) and pre_resolved:
+            return [
+                {
+                    "node_id":    e["node_id"],
+                    "diameter":   e.get("diameter", 0.01),
+                    "start_time": e.get("start_time", 0),
+                    "end_time":   e.get("end_time", duration_sec),
+                }
+                for e in pre_resolved if "node_id" in e
+            ]
         return []
     if not isinstance(extra_demands, list):
         return []
@@ -155,61 +190,74 @@ async def run_simulation_task(scenario_id: int) -> None:
     try:
         duration_sec = scenario.duration_hrs * 3600
 
-        # step 1: .gpkg → .inp
-        inp_dir  = tempfile.mkdtemp(prefix="epytflow_")
-
-        # Check if this is a DMA scenario with a pre-built .inp path
+        # step 1: locate the .inp for this scenario
+        #
+        # The only supported source is a .inp pre-built by the DMA ingest
+        # pipeline (dma_builder.build_dma_inp), whose path is stashed in
+        # extra_demands["_dma_inp_path"] by routers/dma.py or routers/inp.py.
+        # Building an .inp directly from a raw .gpkg (whole-network or a
+        # pipe_ids subset) is no longer supported — network_builder.py and
+        # network_subset.py, which used to do that, have been removed.
         extra = scenario.extra_demands or {}
         dma_inp_path = extra.get("_dma_inp_path") if isinstance(extra, dict) else None
 
-        if dma_inp_path and os.path.isfile(dma_inp_path):
-            inp_path = dma_inp_path
-            logger.info("[%d] DMA scenario — using pre-built .inp: %s", scenario_id, inp_path)
-        elif scenario.pipe_ids:
-            logger.info(
-                "[%d] Building .inp from a %d-pipe subset (reservoir=%.6f,%.6f)",
-                scenario_id, len(scenario.pipe_ids), scenario.reservoir_lat, scenario.reservoir_lon,
+        if not (dma_inp_path and os.path.isfile(dma_inp_path)):
+            raise RuntimeError(
+                "No pre-built .inp found for this scenario "
+                "(extra_demands['_dma_inp_path'] missing or file not found). "
+                "Direct .gpkg-to-.inp building (including pipe_ids subsets) is "
+                "no longer supported — build the scenario via the DMA ingest "
+                "pipeline first."
             )
-            inp_path = build_inp_from_subset(
-                filename         = scenario.gpkg_filename,
-                pipe_fids        = scenario.pipe_ids,
-                reservoir_lat    = scenario.reservoir_lat,
-                reservoir_lon    = scenario.reservoir_lon,
-                snap_tolerance_m = scenario.snap_tolerance_m or 2.0,
-                base_demand      = scenario.base_demand,
-                reservoir_head   = scenario.reservoir_head,
-                duration_hrs     = scenario.duration_hrs,
-                time_step_min    = scenario.time_step_min,
-                extra_demands    = scenario.extra_demands,
-                inp_dir          = inp_dir,
-            )
-        else:
-            inp_path = build_inp_from_gpkg(
-                filename       = scenario.gpkg_filename,
-                pipe_status    = scenario.pipe_status,
-                base_demand    = scenario.base_demand,
-                reservoir_head = scenario.reservoir_head,
-                duration_hrs   = scenario.duration_hrs,
-                time_step_min  = scenario.time_step_min,
-                extra_demands  = scenario.extra_demands,
-                inp_dir        = inp_dir,
-            )
-        logger.info("[%d] .inp → %s", scenario_id, inp_path)
+
+        inp_path = dma_inp_path
+        logger.info("[%d] Using pre-built .inp: %s", scenario_id, inp_path)
 
         logger.info(
-            "[%d] leakage_frac=%s demand_model=%s",
+            "[%d] scenario_type=%s leakage_frac=%s demand_model=%s",
             scenario_id,
+            scenario.scenario_type,
             scenario.leakage_frac,
             scenario.demand_model,
         )
+
+        if scenario.scenario_type not in ALL_SCENARIO_TYPES:
+            raise RuntimeError(
+                f"Unknown scenario_type '{scenario.scenario_type}' — must be one of "
+                f"{sorted(ALL_SCENARIO_TYPES)}."
+            )
 
         # step 2: resolve leak events
         leak_events = _build_leak_events(
             scenario.extra_demands or [], inp_path, duration_sec
         )
 
-        # DMA synthetic leaks
-        if not leak_events and scenario.leakage_frac > 0:
+        if scenario.scenario_type == REPORTED_LEAK:
+            # The router (routers/dma.py / routers/inp.py) must already have
+            # resolved and validated the report(s) against this network and
+            # stashed them in extra_demands["_leak_events"] before queuing.
+            # If none made it through, this scenario was queued incorrectly
+            # — fail loudly rather than silently running a "reported_leak"
+            # scenario with no leak in it.
+            if not leak_events:
+                raise RuntimeError(
+                    "scenario_type='reported_leak' but no resolved leak events "
+                    "were found in extra_demands['_leak_events']. The report(s) "
+                    "must be validated against the network at request time."
+                )
+        elif not leak_events and scenario.leakage_frac > 0:
+            # Random/synthetic per-node leak generation — a research and
+            # testing convenience only. Never a silent default for a
+            # production run driven by the main water-management system.
+            if scenario.scenario_type not in RANDOM_LEAKS_ALLOWED_FOR:
+                raise RuntimeError(
+                    f"leakage_frac={scenario.leakage_frac} is set but scenario_type="
+                    f"'{scenario.scenario_type}' — random/synthetic leak generation "
+                    "is only permitted for scenario_type='research'. This should "
+                    "have been rejected when the scenario was created; failing the "
+                    "run instead of silently injecting leaks."
+                )
+
             coords = _parse_inp_coordinates(inp_path)
 
             all_nodes = list(coords.keys())
@@ -237,7 +285,7 @@ async def run_simulation_task(scenario_id: int) -> None:
             ]
 
             logger.info(
-                "[%d] Generated %d DMA leak events (fraction=%.2f)",
+                "[%d] Generated %d research-mode synthetic leak events (fraction=%.2f)",
                 scenario_id,
                 len(leak_events),
                 scenario.leakage_frac,
@@ -333,6 +381,28 @@ async def run_simulation_task(scenario_id: int) -> None:
                     merged_summary["total_demand_m3h"]  = rpt.flow_balance.consumer_demand_m3h
                 if not rpt.balanced:
                     merged_summary.setdefault("warnings", []).extend(rpt.warnings)
+
+            # Reported-leak analysis: service impact (pressure-drop footprint)
+            # and topological isolation candidates per leak. Computed now,
+            # while inp_path (needed for pipe topology) still exists — it's
+            # deleted in the `finally` block below.
+            if scenario.scenario_type == REPORTED_LEAK:
+                resolved_leaks = (scenario.extra_demands or {}).get("_leak_events") or []
+                try:
+                    isolation = [
+                        recommend_isolation(rl, inp_path) for rl in resolved_leaks
+                    ]
+                except OSError as iso_exc:
+                    logger.warning(
+                        "[%d] Could not compute isolation recommendations: %s",
+                        scenario_id, iso_exc,
+                    )
+                    isolation = []
+
+                merged_summary["reported_leak_analysis"] = {
+                    "service_impact": compute_service_impact(output.node_results),
+                    "isolation_recommendations": isolation,
+                }
 
             # Persist the raw .rpt file itself (not just the parsed summary)
             # so the user can view/download the full EPANET report after the

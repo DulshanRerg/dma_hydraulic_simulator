@@ -771,7 +771,7 @@
                 <!-- ── TAB 1: SETUP ── (Setup + Layers) ───────────────────────── -->
                 <div class="tab-pane active" id="tab-setup">
                     <!-- Setup block -->
-                    <div class="field"><label>SERVICE URL</label><input id="api-base" value="https://dma-hydraulic-simulator.onrender.com" hidden /></div>
+                    <div class="field"><label>SERVICE URL</label><input id="api-base" value="http://localhost:8080" hidden /></div>
                     <div class="field"><label>API KEY</label><input id="api-key" type="password" placeholder="Enter API Key" /></div>
                     <button class="btn primary" id="btn-connect">Connect to service</button>
 
@@ -855,16 +855,16 @@
                         </div>
                         <div class="field"><label>PRESSURE EXPONENT</label><input type="number" id="sim-pda-pexp" value="0.5" step="0.05" min="0.01" /></div>
                     </div>
-                    <div class="field"><label>SCENARIO NAME</label><input id="sim-name" value=" " /></div>
+                    <div class="field"><label>SCENARIO NAME</label><input id="sim-name" value="DMA baseline" /></div>
 
                     <div class="field">
                         <label>SCENARIO TYPE</label>
                         <select id="sim-scenario-type">
-                            <option value="baseline" selected>Baseline (normal operating conditions)</option>
-                            <option value="reported_leak">Reported leak (a real leak reported by the main system)</option>
-                            <option value="planned_shutdown">Planned shutdown (valve/pump isolation, use Actuator events below)</option>
-                            <option value="fire_flow">Fire flow (high-demand test at a node)</option>
-                            <option value="research">Research (synthetic/random leaks for testing &amp; training data)</option>
+                            <option value="baseline" selected>Baseline — normal operating conditions</option>
+                            <option value="reported_leak">Reported leak — a real leak reported by the main system</option>
+                            <option value="planned_shutdown">Planned shutdown — valve/pump isolation (use Actuator events below)</option>
+                            <option value="fire_flow">Fire flow — high-demand test at a node</option>
+                            <option value="research">Research — synthetic/random leaks for testing &amp; training data</option>
                         </select>
                         <p id="scenario-type-hint" style="color:var(--faint);font-size:10px;margin-top:5px;line-height:1.5">No leak events are injected. Only what the network's own model/demands represent.</p>
                     </div>
@@ -1088,7 +1088,7 @@
 
             // ── state ──────────────────────────────────────────────────────────────
             const S = {
-                apiBase: "https://dma-hydraulic-simulator.onrender.com",
+                apiBase: "http://localhost:8080",
                 apiKey: "",
                 sourceType: "gpkg",   // "gpkg" | "inp"
                 file: null,
@@ -2010,8 +2010,17 @@
                         api(`/simulate/${S.scenarioId}/geojson/nodes?time_step=${step}`),
                         api(`/simulate/${S.scenarioId}/geojson/pipes?time_step=${step}`),
                     ]);
-                    L.geoJSON(pipes, { style: () => ({ color: "#1a3050", weight: 1.5, opacity: .6 }) }).addTo(LG
-                        .sim_pipes);
+                    pipes.features.forEach(f => {
+                        if (!f.geometry) return;
+                        const [lon, lat] = f.geometry.coordinates,
+                            p = f.properties;
+                        const col = p.is_high_velocity ? "#e04840" : p.velocity > 1 ? "#e09a2a" : "#1a3050";
+                        L.circleMarker([lat, lon], { radius: p.is_high_velocity ? 5 : 3, color: "#060c10",
+                                weight: 1, fillColor: col, fillOpacity: .85 })
+                            .bindTooltip(
+                                `<div class="info-tt"><b>${p.element_id}</b><br>Flow: ${p.flow_rate??"?"} · Velocity: ${p.velocity??"?"} m/s${p.is_high_velocity?" ⚠ HIGH":""}${p.headloss?`<br>Headloss: ${p.headloss}`:""}</div>`, { sticky: true })
+                            .addTo(LG.sim_pipes);
+                    });
                     nodes.features.forEach(f => {
                         if (!f.geometry) return;
                         const [lon, lat] = f.geometry.coordinates,

@@ -120,6 +120,7 @@ def build_dma_inp(
     pda_pressure_min:      float = 0.0,
     pda_pressure_required: float = 0.1,
     pda_pressure_exponent: float = 0.5,
+    valve_status_overrides: Optional[Dict[int, str]] = None,
 ) -> Tuple[str, RepairReport]:
     """
     Build a fully-connected EPANET DMA model.
@@ -130,6 +131,13 @@ def build_dma_inp(
         in the .inp file itself — not just via the EPyT-Flow Python API —
         so the model is genuinely pressure-driven regardless of whether
         the runtime API call is honoured by the EPANET engine.
+
+    valve_status_overrides
+        Optional {valve fid: "Open"|"Closed"} map from the map inspector
+        panel. Only applies to ISOLATION/WASHOUT valves (the ones modelled
+        as throttling stubs with a real Status); CHECK valves keep their
+        one-way CV status regardless, and AIR/UNKNOWN valves have no stub
+        to set a status on.
 
     Returns
     -------
@@ -205,6 +213,7 @@ def build_dma_inp(
     #                                       (unchanged from before). UNKNOWN
     #                                       cases are logged during ingest.
     valve_pipe_rows: List[str] = []
+    valve_status_overrides = valve_status_overrides or {}
     for key, v in valve_nodes.items():
         if v.kind not in ("ISOLATION", "WASHOUT", "CHECK"):
             continue
@@ -217,13 +226,14 @@ def build_dma_inp(
         diam = max(25.0, v.diam_mm)
         if v.kind == "CHECK":
             # Real check valve: no artificial throttling, EPANET's CV status
-            # already enforces one-directional flow.
+            # already enforces one-directional flow — not overridable.
             valve_pipe_rows.append(
                 f"  VPIPE_{v.fid}  {key}  {helper_id}  0.5  {diam:.1f}  130.0  0  CV"
                 f"  ; {v.valve_type}"
             )
         else:
-            status = "Closed" if v.kind == "WASHOUT" else "Open"
+            default_status = "Closed" if v.kind == "WASHOUT" else "Open"
+            status = valve_status_overrides.get(v.fid, default_status)
             valve_pipe_rows.append(
                 f"  VPIPE_{v.fid}  {key}  {helper_id}  0.5  {diam:.1f}  130.0  10.0  {status}"
                 f"  ; {v.valve_type}"

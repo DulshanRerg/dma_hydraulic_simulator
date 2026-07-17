@@ -74,6 +74,23 @@ class InpUploadResult(BaseModel):
     message:         str
 
 
+class ElementOverrides(BaseModel):
+    """Per-element parameter edits made in the map inspector panel, applied
+    to a throwaway copy of the .inp before it's simulated. Every field is
+    optional — only edited attributes need to be sent. Keys are element IDs
+    exactly as they appear in the .inp (e.g. 'J129', 'P161', 'V1', 'R1', 'T1')."""
+    junctions:  Optional[Dict[str, Dict[str, float]]] = Field(
+        None, description="id -> {elevation?, base_demand?}")
+    pipes:      Optional[Dict[str, Dict[str, object]]] = Field(
+        None, description="id -> {diam_mm?, roughness?, status?('Open'|'Closed')}")
+    valves:     Optional[Dict[str, Dict[str, object]]] = Field(
+        None, description="id -> {diam_mm?, setting?, status?('Open'|'Closed'|'Active')}")
+    reservoirs: Optional[Dict[str, Dict[str, float]]] = Field(
+        None, description="id -> {head?}")
+    tanks:      Optional[Dict[str, Dict[str, float]]] = Field(
+        None, description="id -> {elevation?, init_level?, min_level?, max_level?, diameter?}")
+
+
 class InpSimulateRequest(BaseModel):
     name:          str            = Field("Uploaded .inp run", max_length=128)
     description:   Optional[str]  = None
@@ -110,6 +127,10 @@ class InpSimulateRequest(BaseModel):
     reported_leaks: Optional[List[ReportedLeak]] = Field(
         None,
         description="Required when scenario_type='reported_leak'. Leak report(s) from the main system, validated against the network before the scenario is queued.",
+    )
+    overrides: Optional[ElementOverrides] = Field(
+        None,
+        description="Per-element parameter edits from the map inspector panel (junctions/pipes/valves/reservoirs/tanks), applied to the working copy of the .inp before it's simulated.",
     )
 
     @model_validator(mode="after")
@@ -259,6 +280,7 @@ def _is_number(s: str) -> bool:
 def _parse_valve_attrs(text: str) -> Dict[str, dict]:
     """[VALVES] Id Node1 Node2 Diameter Type Setting [MinorLoss]"""
     out: Dict[str, dict] = {}
+    status_by_id = _parse_status_section(text)
     for line in _section_lines(text, "[VALVES]"):
         parts = line.split()
         if len(parts) < 5:
@@ -268,7 +290,74 @@ def _parse_valve_attrs(text: str) -> Dict[str, dict]:
         except ValueError:
             diam = None
         out[parts[0]] = {"diam_mm": diam, "valve_type": parts[4],
-                          "setting": parts[5] if len(parts) > 5 else None}
+                          "setting": parts[5] if len(parts) > 5 else None,
+                          "status": status_by_id.get(parts[0])}
+    return out
+
+
+def _parse_status_section(text: str) -> Dict[str, str]:
+    """[STATUS] Id Status/Setting — used mainly for valve initial status
+    (Open/Closed/Active) since [VALVES] has no Status column of its own."""
+    out: Dict[str, str] = {}
+    for line in _section_lines(text, "[STATUS]"):
+        parts = line.split()
+        if len(parts) >= 2:
+            out[parts[0]] = parts[1]
+    return out
+
+
+def _parse_junction_attrs(text: str) -> Dict[str, dict]:
+    """[JUNCTIONS] Id Elev [Demand] [Pattern]"""
+    out: Dict[str, dict] = {}
+    for line in _section_lines(text, "[JUNCTIONS]"):
+        parts = line.split()
+        if not parts:
+            continue
+
+        def f(i, default=None):
+            try:
+                return float(parts[i])
+            except (IndexError, ValueError):
+                return default
+        out[parts[0]] = {"elevation": f(1), "base_demand": f(2)}
+    return out
+
+
+def _parse_reservoir_attrs(text: str) -> Dict[str, dict]:
+    """[RESERVOIRS] Id Head [Pattern]"""
+    out: Dict[str, dict] = {}
+    for line in _section_lines(text, "[RESERVOIRS]"):
+        parts = line.split()
+        if not parts:
+            continue
+        try:
+            head = float(parts[1]) if len(parts) > 1 else None
+        except ValueError:
+            head = None
+        out[parts[0]] = {"head": head}
+    return out
+
+
+def _parse_tank_attrs(text: str) -> Dict[str, dict]:
+    """[TANKS] Id Elevation InitLevel MinLevel MaxLevel Diameter MinVol [VolCurve] [Overflow]"""
+    out: Dict[str, dict] = {}
+    for line in _section_lines(text, "[TANKS]"):
+        parts = line.split()
+        if not parts:
+            continue
+
+        def f(i, default=None):
+            try:
+                return float(parts[i])
+            except (IndexError, ValueError):
+                return default
+        out[parts[0]] = {
+            "elevation":  f(1),
+            "init_level": f(2),
+            "min_level":  f(3),
+            "max_level":  f(4),
+            "diameter":   f(5),
+        }
     return out
 
 
@@ -316,6 +405,168 @@ def _fc(features: List[Optional[dict]]) -> dict:
     return {"type": "FeatureCollection", "features": [f for f in features if f]}
 
 
+_VALVE_STATUS_WORDS = {"OPEN", "CLOSED", "ACTIVE"}
+_PIPE_STATUS_WORDS  = {"OPEN", "CLOSED", "CV"}
+
+
+def _patch_numeric_cols(lines: List[str], section: str, id_updates: Dict[str, Dict[int, float]]) -> List[str]:
+    """Rewrite fixed-position numeric columns (by index into whitespace-split
+    fields, id excluded so index 1 == first field after the id) for matching
+    element ids inside `[SECTION]`. Trailing inline comments are preserved."""
+    if not id_updates:
+        return lines
+    out, in_section = [], False
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("["):
+            in_section = stripped.upper() == section
+            out.append(raw)
+            continue
+        if in_section and stripped and not stripped.startswith(";"):
+            code, sep, comment = raw.partition(";")
+            parts = code.split()
+            if parts and parts[0] in id_updates:
+                for idx, val in id_updates[parts[0]].items():
+                    while len(parts) <= idx:
+                        parts.append("0")
+                    parts[idx] = _fmt_num(val)
+                newline = "\t".join(parts)
+                if sep:
+                    newline += " ;" + comment
+                out.append(newline)
+                continue
+        out.append(raw)
+    return out
+
+
+def _fmt_num(v: float) -> str:
+    if isinstance(v, float) and v == int(v):
+        return str(int(v))
+    return f"{v:g}"
+
+
+def _patch_pipe_status(lines: List[str], status_updates: Dict[str, str]) -> List[str]:
+    """[PIPES] status ('Open'/'Closed'/'CV') sits after the optional
+    MinorLoss column, so its position varies — find the existing status
+    token (if any) rather than assuming a fixed index."""
+    if not status_updates:
+        return lines
+    out, in_section = [], False
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("["):
+            in_section = stripped.upper() == "[PIPES]"
+            out.append(raw)
+            continue
+        if in_section and stripped and not stripped.startswith(";"):
+            code, sep, comment = raw.partition(";")
+            parts = code.split()
+            if parts and parts[0] in status_updates:
+                new_status = status_updates[parts[0]].capitalize()
+                status_idx = next((i for i, p in enumerate(parts) if i >= 6 and
+                                    p.upper() in _PIPE_STATUS_WORDS), None)
+                if status_idx is not None:
+                    parts[status_idx] = new_status
+                else:
+                    while len(parts) < 6:
+                        parts.append("0")
+                    parts.append(new_status)
+                newline = "\t".join(parts)
+                if sep:
+                    newline += " ;" + comment
+                out.append(newline)
+                continue
+        out.append(raw)
+    return out
+
+
+def _patch_valve_status(lines: List[str], status_updates: Dict[str, str]) -> List[str]:
+    """Valve initial status (Open/Closed/Active) lives in [STATUS], not
+    [VALVES] — update the existing entry, or append one under the section
+    header if the valve has none yet."""
+    if not status_updates:
+        return lines
+    remaining = dict(status_updates)
+    out, in_section, header_idx = [], False, None
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped.startswith("["):
+            if in_section and remaining:
+                for vid, st in remaining.items():
+                    out.append(f"{vid}\t{st.capitalize()}")
+                remaining = {}
+            in_section = stripped.upper() == "[STATUS]"
+            out.append(raw)
+            continue
+        if in_section and stripped and not stripped.startswith(";"):
+            code, sep, comment = raw.partition(";")
+            parts = code.split()
+            if parts and parts[0] in remaining:
+                newline = f"{parts[0]}\t{remaining.pop(parts[0]).capitalize()}"
+                if sep:
+                    newline += " ;" + comment
+                out.append(newline)
+                continue
+        out.append(raw)
+    if in_section and remaining:
+        for vid, st in remaining.items():
+            out.append(f"{vid}\t{st.capitalize()}")
+    elif remaining:
+        # file has no [STATUS] section at all — add one before [END] or at EOF
+        insert_at = next((i for i, l in enumerate(out) if l.strip().upper() == "[END]"), len(out))
+        block = ["[STATUS]"] + [f"{vid}\t{st.capitalize()}" for vid, st in remaining.items()] + [""]
+        out[insert_at:insert_at] = block
+    return out
+
+
+def _apply_overrides(path: str, overrides: "ElementOverrides") -> None:
+    """Patch a working copy of the .inp in place with edits made in the map
+    inspector panel, before it's handed to the simulation engine."""
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        lines = fh.read().split("\n")
+
+    if overrides.junctions:
+        updates = {jid: {k: v for k, v in
+                          ((1, f.get("elevation")), (2, f.get("base_demand")))
+                          if v is not None}
+                   for jid, f in overrides.junctions.items()}
+        lines = _patch_numeric_cols(lines, "[JUNCTIONS]", {k: v for k, v in updates.items() if v})
+
+    if overrides.reservoirs:
+        updates = {rid: {1: f["head"]} for rid, f in overrides.reservoirs.items() if f.get("head") is not None}
+        lines = _patch_numeric_cols(lines, "[RESERVOIRS]", updates)
+
+    if overrides.tanks:
+        updates = {tid: {k: v for k, v in (
+                        (1, f.get("elevation")), (2, f.get("init_level")),
+                        (3, f.get("min_level")), (4, f.get("max_level")),
+                        (5, f.get("diameter")))
+                          if v is not None}
+                   for tid, f in overrides.tanks.items()}
+        lines = _patch_numeric_cols(lines, "[TANKS]", {k: v for k, v in updates.items() if v})
+
+    if overrides.pipes:
+        num_updates = {pid: {k: v for k, v in (
+                            (4, f.get("diam_mm")), (5, f.get("roughness")))
+                              if v is not None}
+                       for pid, f in overrides.pipes.items()}
+        lines = _patch_numeric_cols(lines, "[PIPES]", {k: v for k, v in num_updates.items() if v})
+        status_updates = {pid: f["status"] for pid, f in overrides.pipes.items() if f.get("status")}
+        lines = _patch_pipe_status(lines, status_updates)
+
+    if overrides.valves:
+        num_updates = {vid: {k: v for k, v in (
+                            (3, f.get("diam_mm")), (5, f.get("setting")))
+                              if v is not None}
+                       for vid, f in overrides.valves.items()}
+        lines = _patch_numeric_cols(lines, "[VALVES]", {k: v for k, v in num_updates.items() if v})
+        status_updates = {vid: f["status"] for vid, f in overrides.valves.items() if f.get("status")}
+        lines = _patch_valve_status(lines, status_updates)
+
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines))
+
+
 @router.get("/{filename}/layers")
 async def get_inp_layers(filename: str, _: str = Depends(require_api_key)):
     """
@@ -343,6 +594,9 @@ async def get_inp_layers(filename: str, _: str = Depends(require_api_key)):
     pump_topo  = _parse_link_endpoints(text, "[PUMPS]")
     valve_topo = _parse_link_endpoints(text, "[VALVES]")
     valve_attrs = _parse_valve_attrs(text)
+    junction_attrs  = _parse_junction_attrs(text)
+    reservoir_attrs = _parse_reservoir_attrs(text)
+    tank_attrs      = _parse_tank_attrs(text)
 
     junction_ids  = _node_ids_in_section(text, "[JUNCTIONS]")
     reservoir_ids = _node_ids_in_section(text, "[RESERVOIRS]")
@@ -368,12 +622,25 @@ async def get_inp_layers(filename: str, _: str = Depends(require_api_key)):
         })
         for vid, (n1, n2) in valve_topo.items()
     ])
+    junctions_fc = _fc([
+        _point_feature(coords, jid, {
+            "id": jid, "type": "junction",
+            **{k: v for k, v in junction_attrs.get(jid, {}).items()},
+        })
+        for jid in junction_ids
+    ])
     reservoirs_fc = _fc([
-        _point_feature(coords, rid, {"id": rid, "type": "reservoir"})
+        _point_feature(coords, rid, {
+            "id": rid, "type": "reservoir",
+            **{k: v for k, v in reservoir_attrs.get(rid, {}).items()},
+        })
         for rid in reservoir_ids
     ])
     tanks_fc = _fc([
-        _point_feature(coords, tid, {"id": tid, "type": "tank"})
+        _point_feature(coords, tid, {
+            "id": tid, "type": "tank",
+            **{k: v for k, v in tank_attrs.get(tid, {}).items()},
+        })
         for tid in tank_ids
     ])
 
@@ -391,6 +658,7 @@ async def get_inp_layers(filename: str, _: str = Depends(require_api_key)):
         "pipes": pipes_fc,
         "pumps": pumps_fc,
         "valves": valves_fc,
+        "junctions": junctions_fc,
         "reservoirs": reservoirs_fc,
         "tanks": tanks_fc,
         "stats": {
@@ -561,7 +829,14 @@ async def simulate_inp(
     work_path = os.path.join(work_dir, safe_name)
     shutil.copy2(src, work_path)
 
-    with open(src, "r", encoding="utf-8", errors="replace") as fh:
+    if body.overrides is not None:
+        try:
+            _apply_overrides(work_path, body.overrides)
+        except Exception as e:
+            shutil.rmtree(work_dir, ignore_errors=True)
+            raise HTTPException(422, f"Couldn't apply element overrides: {e}")
+
+    with open(work_path, "r", encoding="utf-8", errors="replace") as fh:
         file_text = fh.read()
     info = _inspect_inp(file_text)
     file_duration_hrs, file_timestep_min = _parse_times_section(file_text)

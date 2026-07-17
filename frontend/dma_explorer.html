@@ -7,6 +7,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js">
     </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js">
+    </script>
     <style>
         :root {
             --bg: #090d10;
@@ -234,6 +238,183 @@
         .status-bar.failed {
             border-color: var(--red2);
             color: var(--red)
+        }
+
+        /* health indicator */
+        #health-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: 6px;
+            font-family: var(--mono);
+            font-size: 9.5px;
+            color: var(--dim);
+        }
+        #health-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--faint);
+            box-shadow: 0 0 0 rgba(0,0,0,0);
+            transition: background .3s, box-shadow .3s;
+        }
+        #health-dot.ok {
+            background: var(--green);
+            box-shadow: 0 0 5px var(--green);
+        }
+        #health-dot.down {
+            background: var(--red);
+            box-shadow: 0 0 5px var(--red);
+        }
+        #health-dot.pending {
+            background: var(--amber);
+            box-shadow: 0 0 5px var(--amber);
+        }
+        #health-dot.auth {
+            background: var(--amber);
+            box-shadow: 0 0 5px var(--amber);
+        }
+
+        /* progress bar */
+        #sim-progress-wrap {
+            margin-top: 8px;
+            display: none;
+        }
+        #sim-progress-track {
+            width: 100%;
+            height: 6px;
+            background: var(--panel2);
+            border: 1px solid var(--border2);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        #sim-progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--cyan2), var(--cyan));
+            transition: width .4s ease;
+        }
+        #sim-progress-text {
+            display: flex;
+            justify-content: space-between;
+            font-family: var(--mono);
+            font-size: 9.5px;
+            color: var(--dim);
+            margin-top: 4px;
+        }
+
+        /* undo/redo */
+        .row2.event-history-row {
+            gap: 6px;
+            margin-top: 4px;
+            margin-bottom: 10px;
+        }
+        .btn.small {
+            padding: 5px 8px;
+            font-size: 10px;
+        }
+
+        /* scenario history (compare tab) */
+        .hist-group {
+            border: 1px solid var(--border2);
+            border-radius: 3px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        .hist-group-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 9px;
+            background: var(--panel2);
+            cursor: pointer;
+            font-family: var(--mono);
+            font-size: 10px;
+            letter-spacing: .04em;
+            color: var(--text);
+        }
+        .hist-group-head .hg-count {
+            color: var(--dim);
+            font-weight: 400;
+        }
+        .hist-group-body {
+            padding: 4px 8px 6px;
+        }
+        .hist-group-body.collapsed {
+            display: none;
+        }
+        .hist-row {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 4px 2px;
+            font-size: 10.5px;
+            border-bottom: 1px solid var(--border);
+        }
+        .hist-row:last-child {
+            border-bottom: none;
+        }
+        .hist-row input[type="checkbox"] {
+            accent-color: var(--cyan);
+        }
+        .hist-row .hr-name {
+            color: var(--text);
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .hist-row .hr-meta {
+            color: var(--faint);
+            font-family: var(--mono);
+            font-size: 9.5px;
+        }
+        .hist-row.already-added {
+            opacity: .45;
+        }
+
+        /* compare tab */
+        #compare-empty {
+            color: var(--faint);
+            font-size: 11px;
+        }
+        .compare-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--mono);
+            font-size: 10.5px;
+            margin-top: 10px;
+        }
+        .compare-table th, .compare-table td {
+            border: 1px solid var(--border2);
+            padding: 5px 7px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        .compare-table th {
+            background: var(--panel2);
+            color: var(--text);
+            font-size: 9.5px;
+            letter-spacing: .04em;
+        }
+        .compare-table td.metric-label {
+            color: var(--dim);
+            background: var(--panel2);
+        }
+        .compare-rm {
+            color: var(--red);
+            cursor: pointer;
+            margin-left: 6px;
+        }
+        .compare-view-btn {
+            color: var(--cyan);
+            cursor: pointer;
+            font-size: 9.5px;
+            border: 1px solid var(--cyan2);
+            border-radius: 3px;
+            padding: 2px 6px;
+            display: inline-block;
+            margin-top: 3px;
         }
 
         /* stats grids */
@@ -544,6 +725,25 @@
             height: 8px;
             border-radius: 50%
         }
+        .leg-square {
+            width: 8px;
+            height: 8px;
+            flex-shrink: 0
+        }
+        .leg-diamond {
+            width: 8px;
+            height: 8px;
+            transform: rotate(45deg);
+            flex-shrink: 0
+        }
+        .leg-triangle {
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 9px solid;
+            flex-shrink: 0
+        }
         .leg-line {
             width: 20px;
             height: 2px
@@ -702,12 +902,165 @@
             text-align: center
         }
 
+        /* ── COMPARE MODAL (larger, table) ── */
+        #compare-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 2100;
+            background: rgba(5, 8, 10, .78);
+            backdrop-filter: blur(3px);
+            align-items: center;
+            justify-content: center
+        }
+        #compare-modal-overlay.open {
+            display: flex
+        }
+        #compare-modal {
+            width: min(95vw, 1200px);
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            background: var(--panel);
+            border: 1px solid var(--border2);
+            border-radius: 6px;
+            box-shadow: 0 24px 72px rgba(0, 0, 0, .6);
+            overflow: hidden
+        }
+        #compare-modal-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--mono);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .06em;
+            color: var(--cyan);
+            flex-shrink: 0
+        }
+        #compare-modal-close {
+            cursor: pointer;
+            color: var(--dim);
+            font-size: 15px;
+            padding: 2px 8px;
+            border-radius: 3px;
+            transition: all .15s
+        }
+        #compare-modal-close:hover {
+            color: var(--red);
+            background: var(--panel2)
+        }
+        #compare-modal-body {
+            flex: 1;
+            overflow: auto;
+            padding: 16px;
+            background: var(--bg);
+        }
+
         .err {
             color: var(--red);
             font-size: 10.5px;
             margin-top: 6px;
             font-family: var(--mono);
             display: none
+        }
+
+        /* ── ELEMENT INSPECTOR (right-side panel, click a map element to open) ── */
+        #inspector {
+            width: 340px;
+            min-width: 340px;
+            display: flex;
+            flex-direction: column;
+            background: var(--panel);
+            border-left: 1px solid var(--border);
+            transform: translateX(100%);
+            transition: transform .18s ease;
+        }
+        #inspector.open {
+            transform: translateX(0);
+        }
+        #inspector.hidden {
+            display: none;
+        }
+        #insp-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        #insp-head-text .insp-type {
+            font-family: var(--mono);
+            font-size: 9.5px;
+            letter-spacing: .08em;
+            color: var(--dim);
+            text-transform: uppercase;
+        }
+        #insp-head-text .insp-id {
+            font-family: var(--mono);
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--cyan);
+        }
+        #insp-close {
+            cursor: pointer;
+            color: var(--dim);
+            font-size: 15px;
+            padding: 3px 8px;
+            border-radius: 3px;
+            transition: all .15s;
+        }
+        #insp-close:hover {
+            color: var(--red);
+            background: var(--panel2);
+        }
+        #insp-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 14px 16px;
+        }
+        #insp-body .field {
+            margin-bottom: 12px;
+        }
+        #insp-edited-note {
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--amber);
+            margin-bottom: 10px;
+            display: none;
+        }
+        #insp-foot {
+            padding: 12px 16px 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+        }
+        #insp-foot .btn {
+            flex: 1;
+        }
+        #insp-reset {
+            background: transparent;
+            border: 1px solid var(--border2);
+            color: var(--dim);
+        }
+        #insp-reset:hover {
+            color: var(--red);
+            border-color: var(--red);
+        }
+        .element-edited-badge {
+            display: none;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--amber);
+            cursor: pointer;
+            padding: 4px 8px;
+            border: 1px solid var(--amber2);
+            border-radius: 3px;
+            background: rgba(224, 154, 42, .08);
         }
 
         /* responsive tweaks */
@@ -722,11 +1075,23 @@
             #app {
                 flex-direction: column
             }
+            #inspector {
+                position: fixed;
+                inset: 0;
+                width: 100%;
+                min-width: unset;
+                z-index: 1500;
+                border-left: none;
+            }
             #chart-modal {
                 width: 96vw;
                 max-height: 92vh
             }
             #report-modal {
+                width: 96vw;
+                max-height: 92vh
+            }
+            #compare-modal {
                 width: 96vw;
                 max-height: 92vh
             }
@@ -760,18 +1125,20 @@
             <div id="sb-head">
                 <h1> DMA HYDRAULIC EXPLORER</h1>
                 <p>EPyT-Flow v0.17 · EPANET extended-period simulation</p>
+                <div id="health-indicator"><span id="health-dot"></span><span id="health-text">not connected</span></div>
             </div>
             <div id="tabs">
                 <div class="tab active" data-tab="setup">SETUP</div>
                 <div class="tab" data-tab="simulate">SIMULATE</div>
                 <div class="tab" data-tab="analysis">ANALYSIS</div>
+                <div class="tab" data-tab="compare">COMPARE</div>
             </div>
             <div id="sb-body">
 
                 <!-- ── TAB 1: SETUP ── (Setup + Layers) ───────────────────────── -->
                 <div class="tab-pane active" id="tab-setup">
                     <!-- Setup block -->
-                    <div class="field"><label>SERVICE URL</label><input id="api-base" value="http://localhost:8080" hidden /></div>
+                    <div class="field"><label>SERVICE URL</label><input id="api-base" value="https://dma-hydraulic-simulator.onrender.com" hidden /></div>
                     <div class="field"><label>API KEY</label><input id="api-key" type="password" placeholder="Enter API Key" /></div>
                     <button class="btn primary" id="btn-connect">Connect to service</button>
 
@@ -824,7 +1191,7 @@
 
                     <!-- Layers block (merged) -->
                     <p class="sh" style="margin-top:18px" id="layers-heading">Visible layers</p>
-                    <div id="layer-controls"><p style="color:var(--faint);font-size:11px">Load a DMA file first</p></div>
+                    <div id="layer-controls"><p style="color:var(--faint);font-size:11px">Load a DMA (.gpkg) or network (.inp) file first</p></div>
                 </div>
 
                 <!-- ── TAB 2: SIMULATE ── (Simulate + Events) ──────────────────── -->
@@ -896,12 +1263,17 @@
 
                     <button class="btn primary" id="btn-run-sim" disabled>Run simulation</button>
                     <div id="sim-status" class="status-bar" style="display:none"></div>
+                    <div id="sim-progress-wrap">
+                        <div id="sim-progress-track"><div id="sim-progress-fill"></div></div>
+                        <div id="sim-progress-text"><span id="sim-progress-elapsed">elapsed 0:00</span><span id="sim-progress-steps">estimating…</span></div>
+                    </div>
                     <div id="sim-summary" style="display:none">
                         <div class="statgrid" id="sim-statgrid"></div>
                         <div class="row2" style="margin-top:8px;gap:6px" id="gpkg-only-quicklinks">
                             <button class="btn" id="btn-load-leakage">Leakage analysis →</button>
                             <button class="btn" id="btn-load-tanks">Tank volumes →</button>
                         </div>
+                        <button class="btn" id="btn-save-compare" style="margin-top:8px">💾 Save to comparison</button>
                     </div>
                     <div id="err-sim" class="err"></div>
 
@@ -974,6 +1346,10 @@
                         <div class="field"><label>FLOW NOISE σ (m³/h)</label><input type="number" id="unc-fnoise" value="0" step="0.1" min="0" /></div>
                         <div class="field"><label>SEED</label><input type="number" id="unc-seed" value="42" /></div>
                     </div>
+                    <div class="row2 event-history-row">
+                        <button class="btn small" id="btn-undo-event" disabled title="Undo last event change">↶ Undo</button>
+                        <button class="btn small" id="btn-redo-event" disabled title="Redo last undone change">↷ Redo</button>
+                    </div>
                     <button class="btn" id="btn-clear-events" style="margin-top:4px">Clear all events</button>
                     </div>
                 </div>
@@ -1038,6 +1414,25 @@
 
                 </div>
 
+                <!-- ── TAB 4: COMPARE ── (Scenario comparison) ───────────────────── -->
+                <div class="tab-pane" id="tab-compare">
+                    <p class="sh">Scenario comparison</p>
+                    <p style="color:var(--faint);font-size:11px;line-height:1.5">
+                        Pick from previously run scenarios below (grouped by type), or use "Save to comparison" in the Simulate tab right after a run.
+                    </p>
+
+                    <div class="row2" style="gap:6px;margin-top:8px">
+                        <button class="btn" id="btn-load-history">🔄 Load scenario history</button>
+                        <button class="btn" id="btn-add-selected" disabled>+ Add selected to comparison</button>
+                    </div>
+                    <div id="history-status" style="color:var(--faint);font-size:10.5px;font-family:var(--mono);margin-top:6px"></div>
+                    <div id="history-groups" style="margin-top:8px"></div>
+
+                    <p class="sh" style="margin-top:18px">Comparison table</p>
+                    <div id="compare-empty" style="margin-top:6px">No saved scenarios yet.</div>
+                    <button class="btn primary" id="btn-view-compare" style="margin-top:8px" disabled>📊 View comparison table</button>
+                </div>
+
             </div>
         </aside>
 
@@ -1065,14 +1460,28 @@
             </div>
         </div>
 
+        <!-- ── COMPARE MODAL ── -->
+        <div id="compare-modal-overlay">
+            <div id="compare-modal">
+                <div id="compare-modal-head">
+                    <span>📊 COMPARISON TABLE</span>
+                    <span id="compare-modal-close" title="Close">✕</span>
+                </div>
+                <div id="compare-modal-body">
+                    <div id="compare-table-wrap" style="overflow-x:auto"></div>
+                </div>
+            </div>
+        </div>
+
         <main id="map" style="position:relative">
             <div class="map-toolbar" id="map-toolbar"></div>
             <div class="map-legend" id="map-legend" style="display:none">
                 <div class="leg-row"><div class="leg-line" style="background:var(--cyan)"></div>Pipes</div>
                 <div class="leg-row"><div class="leg-line" style="background:#3dbf72;height:3px"></div>Pump</div>
-                <div class="leg-row"><div class="leg-dot" style="background:#3dbf72"></div>Borehole / source</div>
-                <div class="leg-row"><div class="leg-dot" style="background:#50a0d8"></div>Storage tank</div>
-                <div class="leg-row"><div class="leg-dot" style="background:#e09a2a"></div>Valve</div>
+                <div class="leg-row"><div class="leg-dot" style="background:#5a7688"></div>Junction</div>
+                <div class="leg-row"><div class="leg-square" style="background:#3dbf72"></div>Borehole / source</div>
+                <div class="leg-row"><div class="leg-diamond" style="background:#50a0d8"></div>Storage tank</div>
+                <div class="leg-row"><div class="leg-triangle" style="border-bottom-color:#e09a2a"></div>Valve</div>
                 <div class="leg-row"><div class="leg-dot" style="background:#c070e0"></div>Bulk meter</div>
                 <div class="leg-row"><div class="leg-line" style="background:var(--purple);border-bottom:2px dashed var(--purple)"></div>Synthetic connector</div>
                 <div class="leg-row"><div class="leg-dot" style="background:var(--red)"></div>Critical leakage risk</div>
@@ -1080,6 +1489,24 @@
                 <div class="leg-row"><div class="leg-dot" style="background:var(--green)"></div>Low pressure (&lt;7 m)</div>
             </div>
         </main>
+
+        <aside id="inspector" class="hidden">
+            <div id="insp-head">
+                <div id="insp-head-text">
+                    <div class="insp-type" id="insp-type">Element</div>
+                    <div class="insp-id" id="insp-id">—</div>
+                </div>
+                <div id="insp-close" title="Close">✕</div>
+            </div>
+            <div id="insp-body">
+                <div id="insp-edited-note">⚠ This element has unsaved edits pending simulation.</div>
+                <div id="insp-fields"></div>
+            </div>
+            <div id="insp-foot">
+                <button class="btn" id="insp-reset" type="button">Reset</button>
+                <button class="btn" id="insp-apply" type="button">Apply &amp; close</button>
+            </div>
+        </aside>
     </div>
 
     <script>
@@ -1088,7 +1515,7 @@
 
             // ── state ──────────────────────────────────────────────────────────────
             const S = {
-                apiBase: "http://localhost:8080",
+                apiBase: "https://dma-hydraulic-simulator.onrender.com",
                 apiKey: "",
                 sourceType: "gpkg",   // "gpkg" | "inp"
                 file: null,
@@ -1102,6 +1529,29 @@
                 events: { leakages: [], sensor_faults: [], actuator_events: [] },
                 reportedLeaks: [],
                 chartObjectURL: null,
+                // health check
+                healthTimer: null,
+                // undo/redo for events
+                eventHistory: [],
+                eventFuture: [],
+                // simulation progress
+                simStartTime: null,
+                simTotalSteps: 0,
+                simTimer: null,
+                avgSecPerStep: null,
+                lastSummary: null,
+                // scenario comparison
+                savedScenarios: [],
+                scenarioHistory: [],
+                // map clustering
+                clusterEnabled: false,
+                lastNodesGJ: null,
+                lastPipesGJ: null,
+                // element inspector (click-to-edit map elements before simulating)
+                overrides: { junctions: {}, pipes: {}, valves: {}, reservoirs: {}, tanks: {}, sources: {} },
+                elementCache: { junctions: {}, pipes: {}, valves: {}, reservoirs: {}, tanks: {}, sources: {} },
+                elementLayers: { junctions: {}, pipes: {}, valves: {}, reservoirs: {}, tanks: {}, sources: {} },
+                inspector: { type: null, id: null },
             };
 
             // ── map ────────────────────────────────────────────────────────────────
@@ -1115,9 +1565,61 @@
                 .addTo(map);
             L.control.zoom({ position: "topright" }).addTo(map);
 
+            // ── shaped node markers ───────────────────────────────────────────────
+            // L.circleMarker only ever draws a circle. To tell asset types apart the
+            // way EPANET/epyt-flow plots do (junction=dot, reservoir=square,
+            // tank=diamond, valve=triangle) while staying on the same Canvas
+            // renderer as everything else (map uses preferCanvas:true for
+            // performance on large networks — no per-marker DOM/icon cost), these
+            // subclass CircleMarker and just override how it paints itself onto the
+            // shared canvas context. Everything else (radius, color, setStyle(),
+            // click handlers, tooltips) behaves exactly like a normal circleMarker.
+            L.SquareMarker = L.CircleMarker.extend({
+                _updatePath: function() {
+                    const ctx = this._renderer._ctx, p = this._point,
+                        r = Math.max(Math.round(this._radius), 1);
+                    ctx.beginPath();
+                    ctx.rect(p.x - r, p.y - r, r * 2, r * 2);
+                    this._renderer._fillStroke(ctx, this);
+                }
+            });
+            L.DiamondMarker = L.CircleMarker.extend({
+                _updatePath: function() {
+                    const ctx = this._renderer._ctx, p = this._point,
+                        r = Math.max(Math.round(this._radius), 1) * 1.15;
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y - r);
+                    ctx.lineTo(p.x + r, p.y);
+                    ctx.lineTo(p.x, p.y + r);
+                    ctx.lineTo(p.x - r, p.y);
+                    ctx.closePath();
+                    this._renderer._fillStroke(ctx, this);
+                }
+            });
+            L.TriangleMarker = L.CircleMarker.extend({
+                _updatePath: function() {
+                    const ctx = this._renderer._ctx, p = this._point,
+                        r = Math.max(Math.round(this._radius), 1) * 1.15;
+                    ctx.beginPath();
+                    ctx.moveTo(p.x, p.y - r);
+                    ctx.lineTo(p.x + r, p.y + r);
+                    ctx.lineTo(p.x - r, p.y + r);
+                    ctx.closePath();
+                    this._renderer._fillStroke(ctx, this);
+                }
+            });
+            const NODE_MARKER_CLASS = {
+                junctions: L.CircleMarker, reservoirs: L.SquareMarker, sources: L.SquareMarker,
+                tanks: L.DiamondMarker, valves: L.TriangleMarker,
+            };
+            function shapeMarker(type, latlng, style) {
+                const Cls = NODE_MARKER_CLASS[type] || L.CircleMarker;
+                return new Cls(latlng, style);
+            }
+
             const LG = {};
             ["boundary", "pipes", "connectors", "sources", "tanks", "valves", "bulk_meters",
-                "sim_nodes", "sim_pipes", "hotspots", "inp_pumps"
+                "sim_nodes", "sim_pipes", "hotspots", "inp_pumps", "junctions"
             ].forEach(n => { LG[n] = L.layerGroup().addTo(map); });
 
             // ── helpers ────────────────────────────────────────────────────────────
@@ -1132,6 +1634,103 @@
                 el.style.display = "block";
                 el.className = "status-bar " + st.toLowerCase();
                 el.textContent = `[${st}] ${msg || ""}`; }
+
+            // ── BACKEND HEALTH CHECK ──────────────────────────────────────────────
+            function setHealthState(state, label) {
+                const dot = $("health-dot"),
+                    txt = $("health-text");
+                dot.className = state;
+                txt.textContent = label;
+            }
+            async function pingHealth() {
+                if (!S.apiBase) return;
+                setHealthState("pending", "checking…");
+                try {
+                    const ctrl = new AbortController();
+                    const t = setTimeout(() => ctrl.abort(), 4000);
+                    const r = await fetch(S.apiBase.replace(/\/$/, "") + "/health", { signal: ctrl.signal });
+                    clearTimeout(t);
+                    if (!r.ok) { setHealthState("down", `service error (${r.status})`); return; }
+                    // /health only proves the service is reachable — it doesn't check the API key.
+                    // Verify the key itself against an authenticated endpoint so a wrong/missing key
+                    // doesn't get reported as "connected".
+                    try {
+                        const actrl = new AbortController();
+                        const at = setTimeout(() => actrl.abort(), 4000);
+                        const ar = await fetch(S.apiBase.replace(/\/$/, "") + "/files", {
+                            headers: { "X-API-Key": S.apiKey }, signal: actrl.signal
+                        });
+                        clearTimeout(at);
+                        if (ar.status === 401 || ar.status === 403) {
+                            setHealthState("auth", "invalid API key");
+                            return;
+                        }
+                    } catch (e) {
+                        // don't let a hiccup on the secondary check override a confirmed-reachable service
+                    }
+                    setHealthState("ok", "connected");
+                } catch (e) {
+                    setHealthState("down", "disconnected");
+                }
+            }
+            function startHealthPing() {
+                pingHealth();
+                if (S.healthTimer) clearInterval(S.healthTimer);
+                S.healthTimer = setInterval(pingHealth, 15000);
+            }
+
+            // ── SIMULATION PROGRESS BAR (elapsed time + estimated remaining steps) ──
+            function fmtElapsed(sec) {
+                const m = Math.floor(sec / 60),
+                    s = Math.floor(sec % 60);
+                return `${m}:${s.toString().padStart(2, "0")}`;
+            }
+            function startSimProgress(durationHrs, timeStepMin) {
+                S.simTotalSteps = Math.max(1, Math.round(((durationHrs || 24) * 60) / (timeStepMin || 60)));
+                S.simStartTime = Date.now();
+                $("sim-progress-wrap").style.display = "block";
+                $("sim-progress-fill").style.width = "2%";
+                $("sim-progress-elapsed").textContent = "elapsed 0:00";
+                $("sim-progress-steps").textContent = S.avgSecPerStep ?
+                    `estimating step 0/${S.simTotalSteps}` : `~${S.simTotalSteps} time steps to simulate`;
+                if (S.simTimer) clearInterval(S.simTimer);
+                S.simTimer = setInterval(updateSimProgress, 400);
+            }
+            function updateSimProgress() {
+                if (!S.simStartTime) return;
+                const elapsedSec = (Date.now() - S.simStartTime) / 1000;
+                $("sim-progress-elapsed").textContent = "elapsed " + fmtElapsed(elapsedSec);
+                if (S.avgSecPerStep) {
+                    const estTotalSec = S.avgSecPerStep * S.simTotalSteps;
+                    const pct = Math.min(96, (elapsedSec / estTotalSec) * 100);
+                    $("sim-progress-fill").style.width = Math.max(2, pct).toFixed(0) + "%";
+                    const estStep = Math.min(S.simTotalSteps, Math.round((elapsedSec / estTotalSec) * S.simTotalSteps));
+                    const remain = Math.max(0, estTotalSec - elapsedSec);
+                    $("sim-progress-steps").textContent = `~step ${estStep}/${S.simTotalSteps} · est. ${fmtElapsed(remain)} left`;
+                } else {
+                    // no learned timing yet — grow slowly toward 90% so the bar still communicates activity
+                    const pct = Math.min(90, elapsedSec * 3);
+                    $("sim-progress-fill").style.width = pct.toFixed(0) + "%";
+                    $("sim-progress-steps").textContent = `~${S.simTotalSteps} time steps · estimating duration…`;
+                }
+            }
+            function stopSimProgress(success) {
+                if (S.simTimer) clearInterval(S.simTimer);
+                S.simTimer = null;
+                if (S.simStartTime) {
+                    const elapsedSec = (Date.now() - S.simStartTime) / 1000;
+                    if (success && S.simTotalSteps > 0) {
+                        const sample = elapsedSec / S.simTotalSteps;
+                        S.avgSecPerStep = S.avgSecPerStep ? (S.avgSecPerStep * 0.6 + sample * 0.4) : sample;
+                    }
+                    if (success) {
+                        $("sim-progress-fill").style.width = "100%";
+                        $("sim-progress-steps").textContent = `${S.simTotalSteps}/${S.simTotalSteps} steps · done in ${fmtElapsed(elapsedSec)}`;
+                    }
+                }
+                S.simStartTime = null;
+                setTimeout(() => { $("sim-progress-wrap").style.display = "none"; }, success ? 2000 : 0);
+            }
 
             function switchTab(name) {
                 document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("active", p.id === "tab-" + name));
@@ -1206,7 +1805,8 @@
             });
             document.addEventListener("keydown", e => {
                 if (e.key === "Escape") { closeChartModal();
-                    closeReportModal(); }
+                    closeReportModal();
+                    closeCompareModal(); }
             });
 
             // ── REPORT MODAL ──────────────────────────────────────────────────────────
@@ -1217,6 +1817,22 @@
                 document.body.style.overflow = ""; }
             on("report-modal-close", "click", closeReportModal);
             on("report-modal-overlay", "click", e => { if (e.target.id === "report-modal-overlay") closeReportModal(); });
+
+            // ── COMPARE MODAL ──────────────────────────────────────────────────────────
+            function openCompareModal() { $("compare-modal-overlay").classList.add("open");
+                document.body.style.overflow = "hidden"; }
+
+            function closeCompareModal() { $("compare-modal-overlay").classList.remove("open");
+                document.body.style.overflow = ""; }
+
+            function toggleCompareModal() {
+                const overlay = $("compare-modal-overlay");
+                if (overlay.classList.contains("open")) closeCompareModal();
+                else openCompareModal();
+            }
+            on("compare-modal-close", "click", closeCompareModal);
+            on("compare-modal-overlay", "click", e => { if (e.target.id === "compare-modal-overlay") closeCompareModal(); });
+            on("btn-view-compare", "click", toggleCompareModal);
 
             // ── SETUP ────────────────────────────────────────────────────────────────
             async function refreshFileList(selectName) {
@@ -1259,7 +1875,10 @@
                     sel.disabled = false;
                     return true;
                 } catch (e) {
-                    showErr("err-setup", "Could not load file list: " + e.message);
+                    const isAuth = /\b401\b|\b403\b/.test(e.message);
+                    showErr("err-setup", isAuth ?
+                        "Invalid or missing API key — check the key and try connecting again." :
+                        "Could not load file list: " + e.message);
                     sel.innerHTML = '<option value="">— error —</option>';
                     sel.disabled = false;
                     return false;
@@ -1276,12 +1895,14 @@
                     $("upload-file-input").disabled = !ok;
                     $("btn-upload").disabled = !ok;
                     await refreshInpFileList();
-                    $("inp-upload-input").disabled = false;
-                    $("btn-inp-upload").disabled = false;
+                    $("inp-upload-input").disabled = !ok;
+                    $("btn-inp-upload").disabled = !ok;
                     applySourceMode();
+                    startHealthPing();
                 } catch (e) {
                     showErr("err-setup", "Connect failed: " + e.message);
                     $("file-select").innerHTML = '<option value="">— error —</option>';
+                    startHealthPing();
                 }
             });
 
@@ -1294,8 +1915,8 @@
                 $("inp-only-demand-note").style.display = isInp ? "block" : "none";
                 $("gpkg-only-events").style.display = isInp ? "none" : "block";
                 $("gpkg-only-quicklinks").style.display = isInp ? "none" : "flex";
-                $("layers-heading").style.display = isInp ? "none" : "block";
-                $("layer-controls").style.display = isInp ? "none" : "block";
+                $("layers-heading").style.display = "block";
+                $("layer-controls").style.display = "block";
                 $("src-tog-gpkg").style.borderColor = isInp ? "" : "var(--cyan2)";
                 $("src-tog-gpkg").style.color = isInp ? "" : "var(--cyan)";
                 $("src-tog-inp").style.borderColor = isInp ? "var(--cyan2)" : "";
@@ -1430,7 +2051,7 @@
                     }
                     $("map-legend").style.display = "block";
                     try {
-                        const groups = [LG.pipes, LG.inp_pumps, LG.valves, LG.sources, LG.tanks];
+                        const groups = [LG.pipes, LG.inp_pumps, LG.valves, LG.sources, LG.tanks, LG.junctions];
                         let bounds = null;
                         groups.forEach(g => {
                             if (g.getLayers().length) {
@@ -1446,13 +2067,20 @@
 
             function renderInpNetwork(d) {
                 [LG.boundary, LG.pipes, LG.connectors, LG.sources, LG.tanks, LG.valves, LG.bulk_meters,
-                    LG.inp_pumps
+                    LG.inp_pumps, LG.junctions
                 ].forEach(lg => lg.clearLayers());
+                S.elementCache = { junctions: {}, pipes: {}, valves: {}, reservoirs: {}, tanks: {}, sources: {} };
+                S.elementLayers = { junctions: {}, pipes: {}, valves: {}, reservoirs: {}, tanks: {}, sources: {} };
 
                 L.geoJSON(d.pipes, {
-                    style: () => ({ color: var_("--cyan"), weight: 1.8, opacity: .7 }),
-                    onEachFeature: (f, l) => l.bindTooltip(
-                        `<div class="info-tt"><b>${f.properties.id}</b><br>${f.properties.diam_mm?`Ø${f.properties.diam_mm}mm `:""}${f.properties.length_m?`${f.properties.length_m}m`:""}${f.properties.status?` · ${f.properties.status}`:""}</div>`, { sticky: true })
+                    style: f => pipeStyle(f.properties),
+                    onEachFeature: (f, l) => {
+                        S.elementCache.pipes[f.properties.id] = f.properties;
+                        l.bindTooltip(
+                            `<div class="info-tt"><b>${f.properties.id}</b><br>${f.properties.diam_mm?`Ø${f.properties.diam_mm}mm `:""}${f.properties.length_m?`${f.properties.length_m}m`:""}${f.properties.status?` · ${f.properties.status}`:""}</div>`, { sticky: true });
+                        l.on("click", () => openInspector("pipes", f.properties.id, f.properties, l));
+                        (S.elementLayers.pipes = S.elementLayers.pipes || {})[f.properties.id] = l;
+                    }
                 }).addTo(LG.pipes);
 
                 L.geoJSON(d.pumps, {
@@ -1462,30 +2090,53 @@
                 }).addTo(LG.inp_pumps);
 
                 L.geoJSON(d.valves, {
-                    style: () => ({ color: var_("--amber"), weight: 3, dashArray: "4 3", opacity: .9 }),
-                    onEachFeature: (f, l) => l.bindTooltip(
-                        `<div class="info-tt"><b>${f.properties.id}</b><br>${f.properties.valve_type||"Valve"}${f.properties.diam_mm?` · Ø${f.properties.diam_mm}mm`:""}${f.properties.setting?` · ${f.properties.setting}`:""}</div>`, { sticky: true })
+                    style: f => valveStyle(f.properties),
+                    onEachFeature: (f, l) => {
+                        S.elementCache.valves[f.properties.id] = f.properties;
+                        l.bindTooltip(
+                            `<div class="info-tt"><b>${f.properties.id}</b><br>${f.properties.valve_type||"Valve"}${f.properties.diam_mm?` · Ø${f.properties.diam_mm}mm`:""}${f.properties.setting?` · ${f.properties.setting}`:""}</div>`, { sticky: true });
+                        l.on("click", () => openInspector("valves", f.properties.id, f.properties, l));
+                        (S.elementLayers.valves = S.elementLayers.valves || {})[f.properties.id] = l;
+                    }
                 }).addTo(LG.valves);
 
+                (d.junctions?.features || []).forEach(f => {
+                    if (!f.geometry) return;
+                    const [lon, lat] = f.geometry.coordinates, p = f.properties;
+                    S.elementCache.junctions[p.id] = p;
+                    const marker = shapeMarker("junctions", [lat, lon], nodeMarkerStyle("junctions", p.id, 4, "#5a7688"))
+                        .bindTooltip(`<div class="info-tt"><b>${p.id}</b><br>Junction${p.elevation!=null?`<br>Elev ${p.elevation}`:""}${p.base_demand!=null?`<br>Demand ${p.base_demand}`:""}</div>`, { sticky: true });
+                    marker.on("click", () => openInspector("junctions", p.id, p, marker));
+                    (S.elementLayers.junctions = S.elementLayers.junctions || {})[p.id] = marker;
+                    marker.addTo(LG.junctions);
+                });
+
                 d.reservoirs.features.forEach(f => {
-                    const [lon, lat] = f.geometry.coordinates;
-                    L.circleMarker([lat, lon], { radius: 7, color: var_("--bg"), weight: 2, fillColor: "#1eb8a0",
-                            fillOpacity: 1 })
-                        .bindTooltip(`<div class="info-tt"><b>${f.properties.id}</b><br>Reservoir</div>`, { sticky: true })
-                        .addTo(LG.sources);
+                    if (!f.geometry) return;
+                    const [lon, lat] = f.geometry.coordinates, p = f.properties;
+                    S.elementCache.reservoirs[p.id] = p;
+                    const marker = shapeMarker("reservoirs", [lat, lon], nodeMarkerStyle("reservoirs", p.id, 7, "#1eb8a0"))
+                        .bindTooltip(`<div class="info-tt"><b>${p.id}</b><br>Reservoir${p.head!=null?`<br>Head ${p.head}`:""}</div>`, { sticky: true });
+                    marker.on("click", () => openInspector("reservoirs", p.id, p, marker));
+                    (S.elementLayers.reservoirs = S.elementLayers.reservoirs || {})[p.id] = marker;
+                    marker.addTo(LG.sources);
                 });
                 d.tanks.features.forEach(f => {
-                    const [lon, lat] = f.geometry.coordinates;
-                    L.circleMarker([lat, lon], { radius: 7, color: var_("--bg"), weight: 2, fillColor: "#50a0d8",
-                            fillOpacity: 1 })
-                        .bindTooltip(`<div class="info-tt"><b>${f.properties.id}</b><br>Tank</div>`, { sticky: true })
-                        .addTo(LG.tanks);
+                    if (!f.geometry) return;
+                    const [lon, lat] = f.geometry.coordinates, p = f.properties;
+                    S.elementCache.tanks[p.id] = p;
+                    const marker = shapeMarker("tanks", [lat, lon], nodeMarkerStyle("tanks", p.id, 7, "#50a0d8"))
+                        .bindTooltip(`<div class="info-tt"><b>${p.id}</b><br>Tank${p.max_level!=null?`<br>Max level ${p.max_level}`:""}</div>`, { sticky: true });
+                    marker.on("click", () => openInspector("tanks", p.id, p, marker));
+                    (S.elementLayers.tanks = S.elementLayers.tanks || {})[p.id] = marker;
+                    marker.addTo(LG.tanks);
                 });
 
                 $("layer-controls").innerHTML = [
                     { key: "pipes", label: "Pipes", count: d.stats.pipe_count },
                     { key: "inp_pumps", label: "Pumps", count: d.stats.pump_count },
                     { key: "valves", label: "Valves", count: d.stats.valve_count },
+                    { key: "junctions", label: "Junctions", count: d.stats.junction_count },
                     { key: "sources", label: "Reservoirs", count: d.stats.reservoir_count },
                     { key: "tanks", label: "Tanks", count: d.stats.tank_count },
                     { key: "sim_nodes", label: "Sim: node pressure", count: "—" },
@@ -1495,16 +2146,210 @@
                     <span class="lc-label">${l.label}</span>
                     <span class="lc-count">${l.count}</span>
                   </div>`).join("");
+
+                updateEditBadge();
+            }
+
+            // ── element inspector (click a pipe/junction/valve/reservoir/tank) ──────
+            const INSPECTOR_FIELDS = {
+                inp: {
+                    junctions: [
+                        { key: "elevation",   label: "Elevation",   type: "number", step: "0.01" },
+                        { key: "base_demand", label: "Base demand", type: "number", step: "0.01" },
+                    ],
+                    pipes: [
+                        { key: "diam_mm",   label: "Diameter",  type: "number", step: "0.1" },
+                        { key: "roughness", label: "Roughness", type: "number", step: "0.1" },
+                        { key: "status",    label: "Status",    type: "select", options: ["Open", "Closed"] },
+                    ],
+                    valves: [
+                        { key: "diam_mm", label: "Diameter", type: "number", step: "0.1" },
+                        { key: "setting", label: "Setting",  type: "number", step: "0.1" },
+                        { key: "status",  label: "Initial status", type: "select", options: ["Open", "Closed", "Active"] },
+                        { key: "valve_type", label: "Valve type", type: "readonly" },
+                    ],
+                    reservoirs: [
+                        { key: "head", label: "Head", type: "number", step: "0.1" },
+                    ],
+                    tanks: [
+                        { key: "elevation",  label: "Elevation",     type: "number", step: "0.1" },
+                        { key: "init_level", label: "Initial level", type: "number", step: "0.1" },
+                        { key: "min_level",  label: "Min level",     type: "number", step: "0.1" },
+                        { key: "max_level",  label: "Max level",     type: "number", step: "0.1" },
+                        { key: "diameter",   label: "Diameter",      type: "number", step: "0.1" },
+                    ],
+                },
+                gpkg: {
+                    pipes: [
+                        { key: "diam_mm", label: "Diameter (mm)",       type: "number", step: "0.1" },
+                        { key: "hw_c",    label: "Roughness (H-W C)",   type: "number", step: "0.1" },
+                    ],
+                    valves: [
+                        { key: "diam_mm",    label: "Diameter (mm)", type: "number", step: "0.1" },
+                        { key: "status",     label: "Status (isolation/washout only)", type: "select", options: ["Open", "Closed"] },
+                        { key: "valve_type", label: "Valve type", type: "readonly" },
+                        { key: "kind",       label: "Kind",       type: "readonly" },
+                    ],
+                    sources: [
+                        { key: "total_head_m", label: "Total head (m)", type: "number", step: "0.1" },
+                        { key: "elev_m",       label: "Ground elevation (m)", type: "readonly" },
+                    ],
+                    tanks: [
+                        { key: "elev_m",       label: "Elevation (m)",     type: "number", step: "0.1" },
+                        { key: "init_level_m", label: "Initial level (m)", type: "number", step: "0.1" },
+                        { key: "min_level_m",  label: "Min level (m)",     type: "number", step: "0.1" },
+                        { key: "max_level_m",  label: "Max level (m)",     type: "number", step: "0.1" },
+                        { key: "diameter_m",   label: "Diameter (m)",      type: "number", step: "0.01" },
+                    ],
+                },
+            };
+            const TYPE_LABEL = {
+                inp:  { junctions: "Junction", pipes: "Pipe", valves: "Valve", reservoirs: "Reservoir", tanks: "Tank" },
+                gpkg: { pipes: "Pipe", valves: "Valve", sources: "Borehole / Source", tanks: "Tank" },
+            };
+
+            function openInspector(type, id, props) {
+                const src = S.sourceType === "gpkg" ? "gpkg" : "inp";
+                const fields = INSPECTOR_FIELDS[src][type];
+                if (!fields) return;
+                S.inspector = { type, id, src };
+                $("insp-type").textContent = TYPE_LABEL[src][type] || type;
+                $("insp-id").textContent = id;
+                const ov = S.overrides[type][id] || {};
+                $("insp-edited-note").style.display = Object.keys(ov).length ? "block" : "none";
+                $("insp-fields").innerHTML = fields.map(f => {
+                    const current = ov[f.key] !== undefined ? ov[f.key] : props[f.key];
+                    if (f.type === "readonly") {
+                        return `<div class="field"><label>${f.label.toUpperCase()}</label>
+                            <input value="${current ?? ""}" disabled /></div>`;
+                    }
+                    if (f.type === "select") {
+                        return `<div class="field"><label>${f.label.toUpperCase()}</label>
+                            <select data-key="${f.key}">
+                                ${f.options.map(o => `<option value="${o}" ${String(current).toLowerCase()===o.toLowerCase()?"selected":""}>${o}</option>`).join("")}
+                            </select></div>`;
+                    }
+                    return `<div class="field"><label>${f.label.toUpperCase()}</label>
+                        <input type="number" step="${f.step||"any"}" data-key="${f.key}" value="${current ?? ""}" /></div>`;
+                }).join("");
+                $("inspector").classList.remove("hidden");
+                requestAnimationFrame(() => $("inspector").classList.add("open"));
+            }
+
+            function closeInspector() {
+                $("inspector").classList.remove("open");
+                setTimeout(() => $("inspector").classList.add("hidden"), 180);
+                S.inspector = { type: null, id: null };
+            }
+
+            function applyInspector() {
+                const { type, id } = S.inspector;
+                if (!type || !id) return closeInspector();
+                const original = S.elementCache[type][id] || {};
+                const changed = {};
+                $("insp-fields").querySelectorAll("[data-key]").forEach(el => {
+                    const key = el.dataset.key;
+                    let val = el.tagName === "SELECT" ? el.value : (el.value === "" ? null : parseFloat(el.value));
+                    if (val === null || val === undefined) return;
+                    const origVal = original[key];
+                    const isDifferent = el.tagName === "SELECT" ?
+                        String(val).toLowerCase() !== String(origVal ?? "").toLowerCase() :
+                        Math.abs(val - origVal) > 1e-9 || origVal === undefined || origVal === null;
+                    if (isDifferent) changed[key] = val;
+                });
+                if (Object.keys(changed).length) {
+                    S.overrides[type][id] = { ...(S.overrides[type][id] || {}), ...changed };
+                } else {
+                    delete S.overrides[type][id];
+                }
+                restyleElement(type, id);
+                updateEditBadge();
+                closeInspector();
+            }
+
+            function resetInspectorElement() {
+                const { type, id } = S.inspector;
+                if (!type || !id) return;
+                delete S.overrides[type][id];
+                restyleElement(type, id);
+                updateEditBadge();
+                openInspector(type, id, S.elementCache[type][id]);
+            }
+
+            function isEdited(type, id) { return !!(S.overrides[type] && S.overrides[type][id]); }
+
+            function pipeStyle(props) {
+                const baseWeight = props.diam_mm > 100 ? 2.5 : 1.8;
+                if (isEdited("pipes", props.id)) return { color: var_("--amber"), weight: Math.max(3, baseWeight), opacity: .95 };
+                return { color: var_("--cyan"), weight: baseWeight, opacity: .7 };
+            }
+            function valveStyle(props) {
+                if (isEdited("valves", props.id)) return { color: var_("--amber"), weight: 4, dashArray: "4 3", opacity: 1 };
+                return { color: var_("--amber"), weight: 3, dashArray: "4 3", opacity: .9 };
+            }
+            function nodeMarkerStyle(type, id, radius, fillColor) {
+                if (isEdited(type, id)) return { radius: radius + 2, color: var_("--amber"), weight: 3,
+                    fillColor, fillOpacity: 1 };
+                return { radius, color: var_("--bg"), weight: 2, fillColor, fillOpacity: 1 };
+            }
+
+            function restyleElement(type, id) {
+                const layer = S.elementLayers?.[type]?.[id];
+                if (!layer) return;
+                if (type === "pipes") layer.setStyle(pipeStyle({ id, diam_mm: S.elementCache.pipes[id]?.diam_mm }));
+                else if (type === "valves") layer.setStyle(valveStyle({ id }));
+                else {
+                    const colors = { junctions: "#5a7688", reservoirs: "#1eb8a0", tanks: "#50a0d8", sources: "#3dbf72" };
+                    layer.setStyle(nodeMarkerStyle(type, id, type === "junctions" ? 4 : 7, colors[type]));
+                }
+            }
+
+            function countEdits() {
+                return Object.values(S.overrides).reduce((n, byId) => n + Object.keys(byId).length, 0);
+            }
+
+            function updateEditBadge() {
+                const badge = $("mb-edits");
+                if (!badge) return;
+                const n = countEdits();
+                badge.style.display = n ? "flex" : "none";
+                badge.textContent = `✎ ${n} edit${n === 1 ? "" : "s"} pending — click to clear`;
+            }
+
+            function clearAllOverrides() {
+                Object.keys(S.overrides).forEach(t => {
+                    Object.keys(S.overrides[t]).forEach(id => { delete S.overrides[t][id]; restyleElement(t, id); });
+                });
+                updateEditBadge();
+            }
+
+            on("insp-close", "click", closeInspector);
+            on("insp-apply", "click", applyInspector);
+            on("insp-reset", "click", resetInspectorElement);
+
+            function buildOverridesPayload() {
+                const relevantTypes = S.sourceType === "gpkg" ?
+                    ["pipes", "sources", "tanks", "valves"] :
+                    ["junctions", "pipes", "valves", "reservoirs", "tanks"];
+                const nonEmpty = {};
+                relevantTypes.forEach(type => {
+                    const byId = S.overrides[type] || {};
+                    const withEdits = Object.fromEntries(Object.entries(byId).filter(([, v]) => Object.keys(v).length));
+                    if (Object.keys(withEdits).length) nonEmpty[type] = withEdits;
+                });
+                return Object.keys(nonEmpty).length ? nonEmpty : null;
             }
 
             function buildInpToolbar() {
                 $("map-toolbar").innerHTML = `
                   <div class="mb" id="mb-inp-fit">FIT</div>
                   <div class="mb" id="mb-inp-network">NETWORK</div>
-                  <div class="mb" id="mb-pressure">PRESSURE</div>`;
+                  <div class="mb" id="mb-pressure">PRESSURE</div>
+                  <div class="mb" id="mb-cluster">CLUSTER</div>
+                  <div class="element-edited-badge" id="mb-edits"></div>`;
                 on("mb-inp-fit", "click", () => {
                     try {
-                        const groups = [LG.pipes, LG.inp_pumps, LG.valves, LG.sources, LG.tanks];
+                        const groups = [LG.pipes, LG.inp_pumps, LG.valves, LG.sources, LG.tanks, LG.junctions];
                         let bounds = null;
                         groups.forEach(g => { const b = g.getBounds && g.getBounds();
                             if (b && b.isValid()) bounds = bounds ? bounds.extend(b) : b; });
@@ -1514,7 +2359,7 @@
                 on("mb-inp-network", "click", () => {
                     document.querySelectorAll(".mb").forEach(b => b.classList.remove("active"));
                     $("mb-inp-network").classList.add("active");
-                    [LG.pipes, LG.inp_pumps, LG.valves, LG.sources, LG.tanks].forEach(g => map.addLayer(g));
+                    [LG.pipes, LG.inp_pumps, LG.valves, LG.sources, LG.tanks, LG.junctions].forEach(g => map.addLayer(g));
                     map.removeLayer(LG.sim_nodes);
                     map.removeLayer(LG.sim_pipes);
                 });
@@ -1524,6 +2369,12 @@
                     map.addLayer(LG.sim_nodes);
                     map.addLayer(LG.sim_pipes);
                 });
+                on("mb-cluster", "click", () => toggleClustering());
+                on("mb-edits", "click", () => {
+                    if (countEdits() && confirm(`Clear all ${countEdits()} pending element edit(s)?`)) clearAllOverrides();
+                });
+                updateClusterToggleUI(S.lastNodesGJ ? S.lastNodesGJ.features.length : 0);
+                updateEditBadge();
             }
 
             async function apiUpload(path, formData) {
@@ -1604,43 +2455,55 @@
 
             function renderLayers(d) {
                 Object.values(LG).forEach(lg => lg.clearLayers());
+                S.elementCache = { junctions: {}, pipes: {}, valves: {}, reservoirs: {}, tanks: {}, sources: {} };
+                S.elementLayers = { junctions: {}, pipes: {}, valves: {}, reservoirs: {}, tanks: {}, sources: {} };
                 L.geoJSON(d.boundary, { style: () => ({ color: var_("--cyan"), weight: 1.5, fillOpacity: .04,
                         opacity: .7 }) })
                     .addTo(LG.boundary);
                 L.geoJSON(d.pipes, {
-                    style: f => ({ color: var_("--cyan"), weight: f.properties.diam_mm > 100 ? 2.5 : 1.5,
-                        opacity: .7 }),
-                    onEachFeature: (f, l) => l.bindTooltip(
-                        `<div class="info-tt"><b>${f.properties.fid}</b><br>Ø${f.properties.diam_mm}mm C=${f.properties.hw_c} ${f.properties.length_m}m</div>`, { sticky: true })
+                    style: f => pipeStyle({ id: f.properties.fid, diam_mm: f.properties.diam_mm }),
+                    onEachFeature: (f, l) => {
+                        S.elementCache.pipes[f.properties.fid] = f.properties;
+                        l.bindTooltip(
+                            `<div class="info-tt"><b>${f.properties.fid}</b><br>Ø${f.properties.diam_mm}mm C=${f.properties.hw_c} ${f.properties.length_m}m</div>`, { sticky: true });
+                        l.on("click", () => openInspector("pipes", f.properties.fid, f.properties));
+                        S.elementLayers.pipes[f.properties.fid] = l;
+                    }
                 }).addTo(LG.pipes);
                 d.sources.features.forEach(f => {
                     if (!f.geometry) return;
                     const [lon, lat] = f.geometry.coordinates,
                         p = f.properties;
-                    L.circleMarker([lat, lon], { radius: 7, color: var_("--bg"), weight: 2, fillColor: "#3dbf72",
-                            fillOpacity: 1 })
+                    S.elementCache.sources[p.fid] = p;
+                    const marker = shapeMarker("sources", [lat, lon], nodeMarkerStyle("sources", p.fid, 7, "#3dbf72"))
                         .bindTooltip(
-                            `<div class="info-tt"><b>${p.name||p.fid}</b><br>Borehole · head ${p.total_head_m}m<br>Elev ${p.elev_m}m</div>`, { sticky: true })
-                        .addTo(LG.sources);
+                            `<div class="info-tt"><b>${p.name||p.fid}</b><br>Borehole · head ${p.total_head_m}m<br>Elev ${p.elev_m}m</div>`, { sticky: true });
+                    marker.on("click", () => openInspector("sources", p.fid, p));
+                    S.elementLayers.sources[p.fid] = marker;
+                    marker.addTo(LG.sources);
                 });
                 d.tanks.features.forEach(f => {
                     if (!f.geometry) return;
                     const [lon, lat] = f.geometry.coordinates,
                         p = f.properties;
-                    L.circleMarker([lat, lon], { radius: 7, color: var_("--bg"), weight: 2, fillColor: "#50a0d8",
-                            fillOpacity: 1 })
+                    S.elementCache.tanks[p.fid] = p;
+                    const marker = shapeMarker("tanks", [lat, lon], nodeMarkerStyle("tanks", p.fid, 7, "#50a0d8"))
                         .bindTooltip(
-                            `<div class="info-tt"><b>${p.name||p.fid}</b><br>Tank · ${p.cap_m3}m³<br>MaxLevel ${p.max_level_m}m</div>`, { sticky: true })
-                        .addTo(LG.tanks);
+                            `<div class="info-tt"><b>${p.name||p.fid}</b><br>Tank · ${p.cap_m3}m³<br>MaxLevel ${p.max_level_m}m</div>`, { sticky: true });
+                    marker.on("click", () => openInspector("tanks", p.fid, p));
+                    S.elementLayers.tanks[p.fid] = marker;
+                    marker.addTo(LG.tanks);
                 });
                 d.valves.features.forEach(f => {
                     if (!f.geometry) return;
                     const [lon, lat] = f.geometry.coordinates,
                         p = f.properties;
-                    L.circleMarker([lat, lon], { radius: 4, color: var_("--bg"), weight: 1, fillColor: "#e09a2a",
-                            fillOpacity: .9 })
-                        .bindTooltip(`<div class="info-tt">${p.fid} · ${p.valve_type||"Valve"}<br>Ø${p.diam_mm}mm</div>`, { sticky: true })
-                        .addTo(LG.valves);
+                    S.elementCache.valves[p.fid] = p;
+                    const marker = shapeMarker("valves", [lat, lon], nodeMarkerStyle("valves", p.fid, 4, "#e09a2a"))
+                        .bindTooltip(`<div class="info-tt">${p.fid} · ${p.valve_type||"Valve"}<br>Ø${p.diam_mm}mm</div>`, { sticky: true });
+                    marker.on("click", () => openInspector("valves", p.fid, p));
+                    S.elementLayers.valves[p.fid] = marker;
+                    marker.addTo(LG.valves);
                 });
                 d.bulk_meters.features.forEach(f => {
                     if (!f.geometry) return;
@@ -1651,6 +2514,7 @@
                         .bindTooltip(`<div class="info-tt"><b>${p.name||p.fid}</b><br>Bulk meter</div>`, { sticky: true })
                         .addTo(LG.bulk_meters);
                 });
+                updateEditBadge();
             }
 
             function var_(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
@@ -1688,12 +2552,20 @@
                   <div class="mb" id="mb-fit">FIT</div>
                   <div class="mb" id="mb-pipes">PIPES</div>
                   <div class="mb" id="mb-pressure">PRESSURE</div>
-                  <div class="mb" id="mb-hotspots">RISK</div>`;
+                  <div class="mb" id="mb-hotspots">RISK</div>
+                  <div class="mb" id="mb-cluster">CLUSTER</div>
+                  <div class="element-edited-badge" id="mb-edits"></div>`;
                 on("mb-fit", "click", () => { try { map.fitBounds(LG.pipes.getLayers()[0]?.getBounds() || LG.boundary
                             .getLayers()[0]?.getBounds(), { padding: [20, 20] }); } catch (e) {} });
                 on("mb-pipes", "click", () => switchMapView("pipes"));
                 on("mb-pressure", "click", () => switchMapView("pressure"));
                 on("mb-hotspots", "click", () => switchMapView("hotspots"));
+                on("mb-cluster", "click", () => toggleClustering());
+                on("mb-edits", "click", () => {
+                    if (countEdits() && confirm(`Clear all ${countEdits()} pending element edit(s)?`)) clearAllOverrides();
+                });
+                updateClusterToggleUI(S.lastNodesGJ ? S.lastNodesGJ.features.length : 0);
+                updateEditBadge();
             }
 
             function switchMapView(v) {
@@ -1723,6 +2595,7 @@
             on("btn-add-leak", "click", () => {
                 const pid = $("ev-lk-pipe").value.trim();
                 if (!pid) return;
+                pushEventHistory();
                 const type = $("ev-lk-type").value;
                 const ev = { type, link_id: pid, diameter: parseFloat($("ev-lk-diam").value) || 0.015,
                     start_time: parseInt($("ev-lk-t0").value) || 0, end_time: parseInt($("ev-lk-t1").value) || 86400 };
@@ -1734,6 +2607,7 @@
             on("btn-add-fault", "click", () => {
                 const sid = $("ev-sf-id").value.trim();
                 if (!sid) return;
+                pushEventHistory();
                 const ft = $("ev-sf-ftype").value;
                 const ev = { type: "sensor_fault", fault_type: ft, sensor_id: sid,
                     sensor_type: parseInt($("ev-sf-stype").value),
@@ -1751,6 +2625,7 @@
                 const etype = $("ev-ae-type").value;
                 const eid = $("ev-ae-id").value.trim();
                 if (!eid) return;
+                pushEventHistory();
                 const state = $("ev-ae-state").value.trim();
                 const ev = { type: etype, start_time: parseInt($("ev-ae-t0").value) || 0,
                     end_time: parseInt($("ev-ae-t1").value) || 86400 };
@@ -1763,6 +2638,7 @@
                 updateEventSummary();
             });
             on("btn-clear-events", "click", () => {
+                pushEventHistory();
                 S.events = { leakages: [], sensor_faults: [], actuator_events: [] };
                 renderEventLists();
                 updateEventSummary();
@@ -1786,6 +2662,7 @@
             on("btn-add-reported-leak", "click", () => {
                 const pipe = $("rl-pipe").value.trim(), node = $("rl-node").value.trim();
                 if (!pipe && !node) { showErr("err-sim", "Give a pipe ID or a node ID for the reported leak."); return; }
+                pushEventHistory();
                 const rl = { leak_diameter_m: parseFloat($("rl-diam").value) || 0.02,
                     start_time_s: parseInt($("rl-t0").value) || 0 };
                 if (pipe) rl.pipe_id = pipe;
@@ -1806,6 +2683,7 @@
                     </div>`).join("") || `<p style="color:var(--faint);font-size:11px;margin-bottom:6px">No reported leaks added yet</p>`;
             }
             function removeReportedLeak(idx) {
+                pushEventHistory();
                 S.reportedLeaks.splice(idx, 1);
                 renderReportedLeaks();
             }
@@ -1829,6 +2707,7 @@
             }
 
             function removeEvent(listId, idx) {
+                pushEventHistory();
                 const key = listId === "ev-leakage-list" ? "leakages" : listId === "ev-fault-list" ? "sensor_faults" :
                     "actuator_events";
                 S.events[key].splice(idx, 1);
@@ -1836,6 +2715,43 @@
                 updateEventSummary();
             }
             window.removeEvent = removeEvent;
+
+            // ── UNDO / REDO for events + reported leaks ──────────────────────────────
+            const MAX_HISTORY = 50;
+            function snapshotEvents() {
+                return JSON.stringify({ events: S.events, reportedLeaks: S.reportedLeaks });
+            }
+            function pushEventHistory() {
+                S.eventHistory.push(snapshotEvents());
+                if (S.eventHistory.length > MAX_HISTORY) S.eventHistory.shift();
+                S.eventFuture = [];
+                updateUndoRedoButtons();
+            }
+            function restoreSnapshot(json) {
+                const snap = JSON.parse(json);
+                S.events = snap.events;
+                S.reportedLeaks = snap.reportedLeaks;
+                renderEventLists();
+                renderReportedLeaks();
+                updateEventSummary();
+                updateUndoRedoButtons();
+            }
+            function undoEvent() {
+                if (!S.eventHistory.length) return;
+                S.eventFuture.push(snapshotEvents());
+                restoreSnapshot(S.eventHistory.pop());
+            }
+            function redoEvent() {
+                if (!S.eventFuture.length) return;
+                S.eventHistory.push(snapshotEvents());
+                restoreSnapshot(S.eventFuture.pop());
+            }
+            function updateUndoRedoButtons() {
+                $("btn-undo-event").disabled = S.eventHistory.length === 0;
+                $("btn-redo-event").disabled = S.eventFuture.length === 0;
+            }
+            on("btn-undo-event", "click", undoEvent);
+            on("btn-redo-event", "click", redoEvent);
 
             function updateEventSummary() {
                 const lk = S.events.leakages.length,
@@ -1887,12 +2803,15 @@
                         scenario_type: scenarioType,
                     };
                     if (scenarioType === "reported_leak") body.reported_leaks = S.reportedLeaks;
+                    const overridesPayload = buildOverridesPayload();
+                    if (overridesPayload) body.overrides = overridesPayload;
                     try {
                         const resp = await api(`/inp/${encodeURIComponent(S.inpFile)}/simulate`, {
                             method: "POST", body: JSON.stringify(body)
                         });
                         S.scenarioId = resp.id;
                         setStatus("sim-status", "PENDING", "queued…");
+                        startSimProgress(body.duration_hrs, body.time_step_min);
                         LG.connectors.clearLayers();
                         $("conn-alert").style.display = "none";
                         if (S.pollTimer) clearInterval(S.pollTimer);
@@ -1932,6 +2851,8 @@
                     scenario_type: scenarioType,
                 };
                 if (scenarioType === "reported_leak") base.reported_leaks = S.reportedLeaks;
+                const gpkgOverrides = buildOverridesPayload();
+                if (gpkgOverrides) base.overrides = gpkgOverrides;
 
                 let endpoint, body;
                 if (isAdvanced) {
@@ -1955,6 +2876,7 @@
                     const resp = await api(endpoint, { method: "POST", body: JSON.stringify(body) });
                     S.scenarioId = resp.id;
                     setStatus("sim-status", "PENDING", "queued…");
+                    startSimProgress(base.duration_hrs, base.time_step_min);
                     if (resp.topology_repair?.connectors_added > 0)
                         renderConnectors(resp.topology_repair.connectors_geojson, resp.topology_repair
                             .connectors_added, resp.topology_repair.total_connector_length_m);
@@ -1972,6 +2894,7 @@
                         setStatus("sim-status", d.status, "simulating…");
                     } else if (d.status === "DONE") {
                         clearInterval(S.pollTimer);
+                        stopSimProgress(true);
                         setStatus("sim-status", "DONE", "complete");
                         renderSimSummary(d.summary);
                         await renderSimNodes(0);
@@ -1979,13 +2902,16 @@
                         loadReportSummary();
                     } else {
                         clearInterval(S.pollTimer);
+                        stopSimProgress(false);
                         setStatus("sim-status", "FAILED", d.error_message || "unknown error");
                     }
                 } catch (e) { clearInterval(S.pollTimer);
+                    stopSimProgress(false);
                     showErr("err-sim", e.message); }
             }
 
             function renderSimSummary(s) {
+                S.lastSummary = s;
                 $("sim-summary").style.display = "block";
                 const col = v => v > 45 ? "red" : v < 7 ? "green" : "";
                 const fault_info = s.sensor_faults_applied ? `<div class="stat"><div class="v amber">${s.sensor_faults_applied}</div><div class="l">Sensor faults</div></div>` :
@@ -2002,43 +2928,84 @@
                     ${fault_info}${unc_info}`;
             }
 
-            async function renderSimNodes(step) {
-                LG.sim_nodes.clearLayers();
+            // Threshold above which clustering auto-enables for large DMAs/networks
+            const CLUSTER_AUTO_THRESHOLD = 250;
+
+            function makeNodesGroup() {
+                return S.clusterEnabled ?
+                    L.markerClusterGroup({ maxClusterRadius: 55, disableClusteringAtZoom: 17,
+                        spiderfyOnMaxZoom: true, chunkedLoading: true }) :
+                    L.layerGroup();
+            }
+
+            function drawPipesLayer(pipes) {
                 LG.sim_pipes.clearLayers();
+                pipes.features.forEach(f => {
+                    if (!f.geometry) return;
+                    const [lon, lat] = f.geometry.coordinates,
+                        p = f.properties;
+                    const col = p.is_high_velocity ? "#e04840" : p.velocity > 1 ? "#e09a2a" : "#1a3050";
+                    L.circleMarker([lat, lon], { radius: p.is_high_velocity ? 5 : 3, color: "#060c10",
+                            weight: 1, fillColor: col, fillOpacity: .85 })
+                        .bindTooltip(
+                            `<div class="info-tt"><b>${p.element_id}</b><br>Flow: ${p.flow_rate??"?"} · Velocity: ${p.velocity??"?"} m/s${p.is_high_velocity?" ⚠ HIGH":""}${p.headloss?`<br>Headloss: ${p.headloss}`:""}</div>`, { sticky: true })
+                        .addTo(LG.sim_pipes);
+                });
+            }
+
+            function drawNodesLayer(nodes) {
+                // rebuild the node layer group fresh so it matches the current cluster setting
+                try { map.removeLayer(LG.sim_nodes); } catch (e) {}
+                LG.sim_nodes = makeNodesGroup();
+                nodes.features.forEach(f => {
+                    if (!f.geometry) return;
+                    const [lon, lat] = f.geometry.coordinates,
+                        p = f.properties;
+                    const col = p.is_low_pressure ? "#3dbf72" : p.pressure > 45 ? "#e04840" : p.pressure >
+                        30 ? "#e09a2a" : "#50a0d8";
+                    const marker = L.circleMarker([lat, lon], { radius: p.is_low_pressure ? 6 : 4, color: "#060c10",
+                            weight: 1, fillColor: col, fillOpacity: .9 })
+                        .bindTooltip(
+                            `<div class="info-tt"><b>${p.element_id}</b><br>Pressure: ${p.pressure||"?"}m${p.is_low_pressure?" ⚠ LOW":""}${p.water_age?`<br>Age: ${p.water_age}h`:""}</div>`, { sticky: true });
+                    LG.sim_nodes.addLayer(marker);
+                });
+                map.addLayer(LG.sim_nodes);
+                updateClusterToggleUI(nodes.features.length);
+            }
+
+            function updateClusterToggleUI(nodeCount) {
+                const btn = $("mb-cluster");
+                if (!btn) return;
+                btn.classList.toggle("active", S.clusterEnabled);
+                btn.title = S.clusterEnabled ?
+                    "Node clustering ON — click to disable" :
+                    `Node clustering OFF${nodeCount >= CLUSTER_AUTO_THRESHOLD ? " (recommended for large networks)" : ""} — click to enable`;
+            }
+
+            function toggleClustering() {
+                S.clusterEnabled = !S.clusterEnabled;
+                if (S.lastNodesGJ) drawNodesLayer(S.lastNodesGJ);
+                else updateClusterToggleUI(0);
+            }
+            window.toggleClustering = toggleClustering;
+
+            async function renderSimNodes(step) {
                 try {
                     const [nodes, pipes] = await Promise.all([
                         api(`/simulate/${S.scenarioId}/geojson/nodes?time_step=${step}`),
                         api(`/simulate/${S.scenarioId}/geojson/pipes?time_step=${step}`),
                     ]);
-                    pipes.features.forEach(f => {
-                        if (!f.geometry) return;
-                        const [lon, lat] = f.geometry.coordinates,
-                            p = f.properties;
-                        const col = p.is_high_velocity ? "#e04840" : p.velocity > 1 ? "#e09a2a" : "#1a3050";
-                        L.circleMarker([lat, lon], { radius: p.is_high_velocity ? 5 : 3, color: "#060c10",
-                                weight: 1, fillColor: col, fillOpacity: .85 })
-                            .bindTooltip(
-                                `<div class="info-tt"><b>${p.element_id}</b><br>Flow: ${p.flow_rate??"?"} · Velocity: ${p.velocity??"?"} m/s${p.is_high_velocity?" ⚠ HIGH":""}${p.headloss?`<br>Headloss: ${p.headloss}`:""}</div>`, { sticky: true })
-                            .addTo(LG.sim_pipes);
-                    });
-                    nodes.features.forEach(f => {
-                        if (!f.geometry) return;
-                        const [lon, lat] = f.geometry.coordinates,
-                            p = f.properties;
-                        const col = p.is_low_pressure ? "#3dbf72" : p.pressure > 45 ? "#e04840" : p.pressure >
-                            30 ? "#e09a2a" : "#50a0d8";
-                        L.circleMarker([lat, lon], { radius: p.is_low_pressure ? 6 : 4, color: "#060c10",
-                                weight: 1, fillColor: col, fillOpacity: .9 })
-                            .bindTooltip(
-                                `<div class="info-tt"><b>${p.element_id}</b><br>Pressure: ${p.pressure||"?"}m${p.is_low_pressure?" ⚠ LOW":""}${p.water_age?`<br>Age: ${p.water_age}h`:""}</div>`, { sticky: true })
-                            .addTo(LG.sim_nodes);
-                    });
-                    map.addLayer(LG.sim_nodes);
+                    S.lastNodesGJ = nodes;
+                    S.lastPipesGJ = pipes;
+                    // auto-enable clustering for large networks so the map stays readable
+                    if (nodes.features.length >= CLUSTER_AUTO_THRESHOLD && !S.clusterEnabled) S.clusterEnabled = true;
+                    drawPipesLayer(pipes);
+                    drawNodesLayer(nodes);
                     map.addLayer(LG.sim_pipes);
                     if (S.sourceType === "inp") {
                         try {
                             const b = LG.sim_pipes.getBounds?.() && LG.sim_pipes.getBounds().isValid() ?
-                                LG.sim_pipes.getBounds() : LG.sim_nodes.getBounds();
+                                LG.sim_pipes.getBounds() : null;
                             if (b && b.isValid()) map.fitBounds(b, { padding: [24, 24] });
                         } catch (e) {}
                     }
@@ -2185,6 +3152,174 @@
             }
 
             // ── CHARTS (modal) ──────────────────────────────────────────────────────
+            // ── SCENARIO COMPARISON ───────────────────────────────────────────────
+            const MAX_COMPARE = 10;
+            const SCENARIO_TYPE_LABELS = {
+                baseline: "Baseline",
+                reported_leak: "Reported leak",
+                planned_shutdown: "Planned shutdown",
+                fire_flow: "Fire flow",
+                research: "Research (synthetic)",
+            };
+            const COMPARE_METRICS = [
+                { key: "pressure_avg_m", label: "Avg pressure (m)" },
+                { key: "pressure_min_m", label: "Min pressure (m)" },
+                { key: "pressure_max_m", label: "Max pressure (m)" },
+                { key: "low_pressure_nodes", label: "Low-pressure nodes" },
+                { key: "leak_events_injected", label: "Leak events" },
+                { key: "sensor_faults_applied", label: "Sensor faults" },
+                { key: "time_steps", label: "Time steps" },
+            ];
+            function renderCompareTab() {
+                const wrap = $("compare-table-wrap");
+                const emptyEl = $("compare-empty");
+                const btn = $("btn-view-compare");
+                if (!S.savedScenarios.length) {
+                    emptyEl.style.display = "block";
+                    emptyEl.textContent = "No saved scenarios yet.";
+                    btn.disabled = true;
+                    wrap.innerHTML = "";
+                    closeCompareModal();
+                    return;
+                }
+                emptyEl.style.display = "block";
+                emptyEl.textContent = `${S.savedScenarios.length} scenario${S.savedScenarios.length>1?"s":""} saved — click below to view the comparison table.`;
+                btn.disabled = false;
+                let html = `<table class="compare-table"><thead><tr><th>Metric</th>`;
+                S.savedScenarios.forEach((sc, i) => {
+                    const typeLabel = SCENARIO_TYPE_LABELS[sc.type] || sc.type || "";
+                    html += `<th>${sc.name}<br><span style="color:var(--dim);font-weight:400;font-size:9px">${typeLabel}</span><br><span class="compare-rm" onclick="removeSavedScenario(${i})" title="Remove">✕ remove</span>
+                        <div class="compare-view-btn" onclick="viewSavedScenario(${i})">View on map</div></th>`;
+                });
+                html += `</tr></thead><tbody>`;
+                COMPARE_METRICS.forEach(m => {
+                    html += `<tr><td class="metric-label">${m.label}</td>`;
+                    S.savedScenarios.forEach(sc => {
+                        const v = sc.summary ? (sc.summary[m.key] ?? "—") : "—";
+                        html += `<td>${v}</td>`;
+                    });
+                    html += `</tr>`;
+                });
+                html += `</tbody></table>`;
+                wrap.innerHTML = html;
+            }
+            function removeSavedScenario(i) {
+                S.savedScenarios.splice(i, 1);
+                renderCompareTab();
+            }
+            window.removeSavedScenario = removeSavedScenario;
+            async function viewSavedScenario(i) {
+                const sc = S.savedScenarios[i];
+                if (!sc) return;
+                S.scenarioId = sc.id;
+                closeCompareModal();
+                switchTab("simulate");
+                setStatus("sim-status", "DONE", `viewing saved scenario "${sc.name}"`);
+                renderSimSummary(sc.summary);
+                await renderSimNodes(0);
+                maybeUnlockPostSimTabs();
+            }
+            window.viewSavedScenario = viewSavedScenario;
+            on("btn-save-compare", "click", () => {
+                if (!S.scenarioId || !S.lastSummary) return;
+                if (S.savedScenarios.some(sc => sc.id === S.scenarioId)) {
+                    showErr("err-sim", null);
+                    return;
+                }
+                const name = ($("sim-name").value || "Scenario") + ` #${S.scenarioId}`;
+                S.savedScenarios.push({ id: S.scenarioId, name, type: $("sim-scenario-type").value,
+                    summary: S.lastSummary });
+                if (S.savedScenarios.length > MAX_COMPARE) S.savedScenarios.shift();
+                renderCompareTab();
+                switchTab("compare");
+                openCompareModal();
+            });
+
+            // ── SCENARIO HISTORY (GET /simulate, grouped by scenario_type) ─────────
+            on("btn-load-history", "click", loadScenarioHistory);
+            on("btn-add-selected", "click", addSelectedFromHistory);
+
+            async function loadScenarioHistory() {
+                $("history-status").textContent = "loading…";
+                $("btn-add-selected").disabled = true;
+                try {
+                    // only DONE scenarios carry a usable summary for comparison
+                    const list = await api(`/simulate?limit=50&status=DONE`);
+                    S.scenarioHistory = list || [];
+                    $("history-status").textContent = `${S.scenarioHistory.length} completed scenario${S.scenarioHistory.length===1?"":"s"} found`;
+                    renderHistoryGroups();
+                } catch (e) {
+                    $("history-status").textContent = "Failed to load history: " + e.message;
+                    $("history-groups").innerHTML = "";
+                }
+            }
+
+            function renderHistoryGroups() {
+                const groupsWrap = $("history-groups");
+                if (!S.scenarioHistory.length) {
+                    groupsWrap.innerHTML = "";
+                    return;
+                }
+                // group by scenario_type, newest first within each group
+                const byType = {};
+                S.scenarioHistory.forEach(sc => {
+                    const t = sc.scenario_type || "baseline";
+                    (byType[t] = byType[t] || []).push(sc);
+                });
+                const order = Object.keys(SCENARIO_TYPE_LABELS).filter(t => byType[t]).concat(
+                    Object.keys(byType).filter(t => !SCENARIO_TYPE_LABELS[t]));
+                let html = "";
+                order.forEach((t, gi) => {
+                    const items = byType[t];
+                    const label = SCENARIO_TYPE_LABELS[t] || t;
+                    html += `<div class="hist-group">
+                        <div class="hist-group-head" onclick="toggleHistGroup(${gi})">
+                            <span>${label} <span class="hg-count">(${items.length})</span></span>
+                            <span id="hg-caret-${gi}">▾</span>
+                        </div>
+                        <div class="hist-group-body" id="hg-body-${gi}">`;
+                    items.forEach(sc => {
+                        const already = S.savedScenarios.some(s => s.id === sc.id);
+                        const when = sc.created_at ? new Date(sc.created_at).toLocaleString() : "";
+                        html += `<div class="hist-row ${already?"already-added":""}">
+                            <input type="checkbox" data-hist-id="${sc.id}" ${already?"disabled":""} />
+                            <span class="hr-name">${sc.name || ("Scenario #" + sc.id)}</span>
+                            <span class="hr-meta">${already?"already added":when}</span>
+                        </div>`;
+                    });
+                    html += `</div></div>`;
+                });
+                groupsWrap.innerHTML = html;
+                groupsWrap.querySelectorAll('input[type="checkbox"]').forEach(cb =>
+                    cb.addEventListener("change", () => {
+                        const anyChecked = !!groupsWrap.querySelector('input[type="checkbox"]:checked');
+                        $("btn-add-selected").disabled = !anyChecked;
+                    }));
+            }
+            function toggleHistGroup(gi) {
+                const body = $(`hg-body-${gi}`),
+                    caret = $(`hg-caret-${gi}`);
+                const collapsed = body.classList.toggle("collapsed");
+                caret.textContent = collapsed ? "▸" : "▾";
+            }
+            window.toggleHistGroup = toggleHistGroup;
+
+            function addSelectedFromHistory() {
+                const checked = Array.from(document.querySelectorAll('#history-groups input[type="checkbox"]:checked'));
+                if (!checked.length) return;
+                checked.forEach(cb => {
+                    const id = parseInt(cb.dataset.histId);
+                    const sc = S.scenarioHistory.find(s => s.id === id);
+                    if (!sc || S.savedScenarios.some(s => s.id === id)) return;
+                    S.savedScenarios.push({ id: sc.id, name: sc.name || `Scenario #${sc.id}`,
+                        type: sc.scenario_type, summary: sc.summary });
+                });
+                while (S.savedScenarios.length > MAX_COMPARE) S.savedScenarios.shift();
+                renderCompareTab();
+                renderHistoryGroups();
+                $("btn-add-selected").disabled = true;
+            }
+
             function maybeUnlockPostSimTabs() {
                 if (!S.scenarioId) return;
                 $("charts-ph").style.display = "none";
@@ -2312,6 +3447,8 @@
             // ── init ──────────────────────────────────────────────────────────────────
             renderEventLists();
             applySourceMode();
+            updateUndoRedoButtons();
+            renderCompareTab();
 
             // Override switchTab to scroll to top of the tab content
             const origSwitch = switchTab;

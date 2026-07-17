@@ -22,14 +22,14 @@ epanet_service_epytflow/
 ├── data/
 │   ├── db/.gitkeep
 │   └── gpkg/
-│       ├── DUWASA.gpkg              Consolidated DMA dataset (pipes+sources+tanks+valves+DMA)
+│
 ├── frontend/
 │   ├── dma_explorer.html            DMA Water Leakage Explorer
 ├── tests/
 │   ├── conftest.py                  Shared DB-init fixture
 │   ├── test_api.py                  Original API integration tests
 │   ├── test_dma.py                  DMA endpoint + topology repair tests
-│   └── test_network.py              Network selection + subset simulation tests
+│
 ├── pytest.ini
 ├── Dockerfile
 ├── docker-compose.yml

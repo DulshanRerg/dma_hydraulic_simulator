@@ -1,5 +1,5 @@
 # Dockerfile — EPyT-Flow edition
-# Multi-stage build for the EPANET Hydraulic Simulation Service.
+# Multi-stage build for the EPANET-backed backend Hydraulic Simulation Service.
 
 # ── stage 1: build ────────────────────────────────────────────────────────────
 FROM python:3.11-slim AS builder
@@ -34,7 +34,7 @@ COPY --from=builder /venv /venv
 COPY app/ ./app/
 COPY frontend/ ./frontend/
 
-RUN mkdir -p /data/gpkg /data/db /tmp && \
+RUN mkdir -p /data/gpkg /data/inp /data/reports /data/db /tmp && \
     chown -R appuser:appuser /app /data
 
 USER appuser

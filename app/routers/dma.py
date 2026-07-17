@@ -87,14 +87,18 @@ def get_dma_layers(
         "tanks": {"type": "FeatureCollection",
                   "features": [point_feature(t.lon, t.lat,
                       {"fid": t.fid, "name": t.name, "elev_m": t.elev_m,
-                       "cap_m3": t.cap_m3, "max_level_m": t.max_level_m,
+                       "cap_m3": t.cap_m3, "init_level_m": t.init_level_m,
+                       "min_level_m": t.min_level_m, "max_level_m": t.max_level_m,
                        "diameter_m": round(t.diameter_m, 2), "status": t.status,
                        "type": "tank"}) for t in dma.tanks]},
         "valves": {"type": "FeatureCollection",
                    "features": [point_feature(v.lon, v.lat,
                        {"fid": v.fid, "valve_type": v.valve_type,
                         "diam_mm": v.diam_mm, "is_isolation": v.is_isolation,
-                        "kind": v.kind, "type": "valve"}) for v in dma.valves]},
+                        "kind": v.kind, "type": "valve",
+                        "status": ("Closed" if v.kind == "WASHOUT" else "Open")
+                                  if v.kind in ("ISOLATION", "WASHOUT") else v.status})
+                       for v in dma.valves]},
         "bulk_meters": {"type": "FeatureCollection",
                         "features": [point_feature(b.lon, b.lat,
                             {"fid": b.fid, "name": b.name, "type": "bulk_meter"})
@@ -111,6 +115,76 @@ def get_dma_layers(
 # ═══════════════════════════════════════════════════════════════════════════════
 #  POST /dma/{filename}/simulate  — baseline
 # ═══════════════════════════════════════════════════════════════════════════════
+
+class DMAElementOverrides(BaseModel):
+    """Per-element parameter edits made in the map inspector panel, applied
+    to the ingested GIS records (by `fid`, as returned in /dma/{f}/layers)
+    before the .inp is rebuilt for this run. Every field is optional — only
+    edited attributes need to be sent."""
+    pipes: Optional[Dict[str, Dict[str, float]]] = Field(
+        None, description="fid -> {diam_mm?, hw_c?(roughness)}")
+    sources: Optional[Dict[str, Dict[str, float]]] = Field(
+        None, description="fid -> {total_head_m?}")
+    tanks: Optional[Dict[str, Dict[str, float]]] = Field(
+        None, description="fid -> {elev_m?, init_level_m?, min_level_m?, max_level_m?, diameter_m?}")
+    valves: Optional[Dict[str, Dict[str, object]]] = Field(
+        None, description="fid -> {diam_mm?, status?('Open'|'Closed') — ISOLATION/WASHOUT valves only}")
+
+
+def _apply_dma_overrides(dma, overrides: Optional[DMAElementOverrides]) -> Dict[int, str]:
+    """Mutate the ingested DMAData in place with inspector-panel edits,
+    keyed by `fid`. Returns a {valve fid: status} map for the valve-status
+    overrides that dma_builder.build_dma_inp() needs separately, since
+    valve status is derived at .inp-build time rather than stored on the
+    DMAValve record itself.
+    """
+    if overrides is None:
+        return {}
+
+    def _set(obj, field, value):
+        if value is not None:
+            setattr(obj, field, float(value))
+
+    if overrides.pipes:
+        by_fid = {p.fid: p for p in dma.pipes}
+        for fid_str, f in overrides.pipes.items():
+            p = by_fid.get(int(fid_str)) if fid_str.lstrip("-").isdigit() else None
+            if p is None:
+                continue
+            _set(p, "diam_mm", f.get("diam_mm"))
+            _set(p, "hw_c", f.get("hw_c"))
+
+    if overrides.sources:
+        by_fid = {s.fid: s for s in dma.sources}
+        for fid_str, f in overrides.sources.items():
+            s = by_fid.get(int(fid_str)) if fid_str.lstrip("-").isdigit() else None
+            if s is None:
+                continue
+            _set(s, "total_head_m", f.get("total_head_m"))
+
+    if overrides.tanks:
+        by_fid = {t.fid: t for t in dma.tanks}
+        for fid_str, f in overrides.tanks.items():
+            t = by_fid.get(int(fid_str)) if fid_str.lstrip("-").isdigit() else None
+            if t is None:
+                continue
+            for field in ("elev_m", "init_level_m", "min_level_m", "max_level_m", "diameter_m"):
+                _set(t, field, f.get(field))
+
+    valve_status_overrides: Dict[int, str] = {}
+    if overrides.valves:
+        by_fid = {v.fid: v for v in dma.valves}
+        for fid_str, f in overrides.valves.items():
+            v = by_fid.get(int(fid_str)) if fid_str.lstrip("-").isdigit() else None
+            if v is None:
+                continue
+            _set(v, "diam_mm", f.get("diam_mm"))
+            status = f.get("status")
+            if status:
+                valve_status_overrides[v.fid] = str(status).capitalize()
+
+    return valve_status_overrides
+
 
 class DMASimRequest(BaseModel):
     name:            str   = Field("DMA hydraulic run", max_length=200)
@@ -145,6 +219,11 @@ class DMASimRequest(BaseModel):
     pda_pressure_required: float = Field(0.1, gt=0)
     pda_pressure_exponent: float = Field(0.5, gt=0)
 
+    overrides: Optional[DMAElementOverrides] = Field(
+        None,
+        description="Per-element parameter edits from the map inspector panel (pipes/sources/tanks/valves, keyed by fid), applied before the .inp is rebuilt for this run.",
+    )
+
     @model_validator(mode="after")
     def _check_scenario_contract(self):
         try:
@@ -156,6 +235,7 @@ class DMASimRequest(BaseModel):
         except ValueError as exc:
             raise ValueError(str(exc)) from exc
         return self
+
 
 
 @router.post("/{filename}/simulate", status_code=202)
@@ -179,6 +259,11 @@ async def simulate_dma(
     if not dma.sources and not dma.tanks:
         raise HTTPException(422, "No water sources or tanks found.")
 
+    try:
+        valve_status_overrides = _apply_dma_overrides(dma, body.overrides)
+    except Exception as e:
+        raise HTTPException(422, f"Couldn't apply element overrides: {e}")
+
     import tempfile
     inp_dir = tempfile.mkdtemp(prefix="dma_epyt_")
     try:
@@ -193,6 +278,7 @@ async def simulate_dma(
             pda_pressure_min      = body.pda_pressure_min,
             pda_pressure_required = body.pda_pressure_required,
             pda_pressure_exponent = body.pda_pressure_exponent,
+            valve_status_overrides = valve_status_overrides,
         )
     except Exception as e:
         logger.exception("DMA .inp build failed")
@@ -361,6 +447,11 @@ class DMAAdvancedSimRequest(BaseModel):
     model_uncertainty: Optional[ModelUncertaintyModel] = None
     sensor_noise:      Optional[SensorNoiseModel]      = None
 
+    overrides: Optional[DMAElementOverrides] = Field(
+        None,
+        description="Per-element parameter edits from the map inspector panel (pipes/sources/tanks/valves, keyed by fid), applied before the .inp is rebuilt for this run.",
+    )
+
     @model_validator(mode="after")
     def _check_scenario_contract(self):
         try:
@@ -406,6 +497,11 @@ async def simulate_dma_advanced(
     if not dma.pipes:
         raise HTTPException(422, "No operational pipes found in the DMA.")
 
+    try:
+        valve_status_overrides = _apply_dma_overrides(dma, body.overrides)
+    except Exception as e:
+        raise HTTPException(422, f"Couldn't apply element overrides: {e}")
+
     import tempfile
     inp_dir = tempfile.mkdtemp(prefix="dma_adv_")
     try:
@@ -420,6 +516,7 @@ async def simulate_dma_advanced(
             pda_pressure_min      = body.pda_pressure_min,
             pda_pressure_required = body.pda_pressure_required,
             pda_pressure_exponent = body.pda_pressure_exponent,
+            valve_status_overrides = valve_status_overrides,
         )
     except Exception as e:
         logger.exception("DMA .inp build failed (advanced)")
